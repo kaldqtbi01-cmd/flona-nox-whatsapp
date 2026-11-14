@@ -51,7 +51,10 @@ if (global.conns instanceof Array) console.log()
 else global.conns = []
 
 let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
-    if (!global.db.data.settings[conn.user.jid].jadibotmd) return m.reply('⚠️ خاصية البوتات الفرعية معطلة.')
+    const botSettings = global.db.data.settings[conn.user.jid] ||= {}
+    // التفعيل الافتراضي يمنع ظهور رسالة التعطيل عند إنشاء إعدادات جديدة.
+    // يمكن للمطور تعطيل الخاصية لاحقًا بوضع jadibotmd=false.
+    if (botSettings.jadibotmd === false) return m.reply('⚠️ خاصية البوتات الفرعية معطلة.')
     if (conn.user.jid === m.sender) return
     let who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.fromMe ? conn.user.jid : m.sender
     let id = `${text ? text.replace(/\D/g, '') : who.split`@`[0]}`
