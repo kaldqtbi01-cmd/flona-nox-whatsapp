@@ -8,6 +8,7 @@ import {
   downloadMediaMessage,
   proto,
 } from '@whiskeysockets/baileys'
+import store from '../lib/store.js'
 
 const WRAPPERS = [
   'viewOnceMessageV2Extension',
@@ -29,7 +30,8 @@ function timeout(task, ms = 15_000) {
 }
 
 function quotedRaw(m) {
-  return m.msg?.contextInfo?.quotedMessage || m.quoted?.vM?.message || {}
+  const stored = m.quoted?.id ? store.loadMessage(m.quoted.chat, m.quoted.id) : null
+  return stored?.message || m.msg?.contextInfo?.quotedMessage || m.quoted?.vM?.message || {}
 }
 
 function unwrap(message) {
@@ -57,25 +59,26 @@ function unwrap(message) {
 }
 
 function findMedia(m) {
+  const stored = m.quoted?.id ? store.loadMessage(m.quoted.chat, m.quoted.id) : null
   // هذا هو المسار الموثوق في simple.js: يفك ViewOnce ويحتفظ بمفتاح الوسائط.
   const prepared = m.quoted?.mediaMessage
   if (prepared) {
     for (const [key, type] of MEDIA) {
-      if (prepared[key]) return { key, type, message: { ...prepared[key] }, prepared: true }
+      if (prepared[key]) return { key, type, message: { ...prepared[key] }, prepared: true, stored }
     }
   }
 
   const inner = unwrap(quotedRaw(m))
   for (const [key, type] of MEDIA) {
     if (inner[key]) {
-      return { key, type, message: { ...inner[key] } }
+      return { key, type, message: { ...inner[key] }, stored }
     }
   }
 
   // بعض نسخ simple.js تفك الغلاف داخل m.quoted مباشرة.
   for (const [key, type] of MEDIA) {
     const value = m.quoted?.[key]
-    if (value) return { key, type, message: { ...value } }
+    if (value) return { key, type, message: { ...value }, stored }
   }
   return null
 }
@@ -98,7 +101,7 @@ async function downloadMedia(conn, m, media) {
     ['downloadM', () => conn.downloadM?.(media.message, media.type)],
     ['stream', () => readStream(media.message, media.type)],
     ['downloadMediaMessage', async () => {
-      const original = m.quoted?.vM || m.quoted?.fakeObj
+      const original = media.stored || m.quoted?.vM || m.quoted?.fakeObj
       if (!original) throw new Error('بيانات الرسالة الأصلية غير موجودة')
       const fake = proto.WebMessageInfo.fromObject({
         key: original.key,
