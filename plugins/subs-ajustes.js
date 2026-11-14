@@ -88,6 +88,45 @@ const handler = async (m, { conn, command, usedPrefix, text, isROwner }) => {
         break
       }
 
+      case 'فصل-بوت': case 'فصل_بوت':
+      case 'حذف-بوت': case 'حذف_بوت': {
+        if (!isROwner && m.sender !== conn.user.jid)
+          return m.reply('❌ هذا الأمر متاح لمالك البوت الأساسي فقط.')
+
+        const targetNumber = String(text || '').replace(/\D/g, '')
+        if (!targetNumber)
+          return m.reply(`📱 أرسل رقم البوت الفرعي المراد فصله.\n\nمثال:\n${usedPrefix}فصل_بوت 967715576613`)
+
+        const mainNumber = jidDecode(conn.user?.jid || '')?.user || ''
+        if (targetNumber === mainNumber)
+          return m.reply('❌ لا يمكن فصل البوت الأساسي من هذا الأمر.')
+
+        const targetJid = `${targetNumber}@s.whatsapp.net`
+        const index = global.conns?.findIndex(bot => {
+          const jid = bot?.user?.jid || ''
+          const number = jidDecode(jid)?.user || jid.split('@')[0].split(':')[0]
+          return number === targetNumber
+        }) ?? -1
+
+        const sessionPath = path.resolve('./jadibts', targetNumber)
+        const hadSession = fs.existsSync(sessionPath)
+        if (index !== -1 && global.conns[index]) {
+          try { await global.conns[index].logout() } catch (e) {
+            console.warn(`[SUBBOT LOGOUT] ${targetJid}: ${e.message}`)
+          }
+          global.conns.splice(index, 1)
+        }
+
+        if (hadSession)
+          fs.rmSync(sessionPath, { recursive: true, force: true })
+
+        return m.reply(
+          index === -1 && !hadSession
+            ? `⚠️ لم توجد جلسة محفوظة للرقم: ${targetNumber}`
+            : `✅ تم فصل البوت الفرعي وحذف جلسته:\n📱 ${targetNumber}`
+        )
+      }
+
       
       case 'leave': case 'salir': case 'اطلع': {
         await m.react('🕒')
@@ -176,6 +215,7 @@ handler.command = [
   'self', 'public', 'antiprivate', 'gponly',
   'ذاتي', 'عام', 'مضاد-خاص', 'قروبات',
   'join', 'ادخل',
+  'فصل-بوت', 'فصل_بوت', 'حذف-بوت', 'حذف_بوت',
   'leave', 'salir', 'اطلع',
   'logout', 'تسجيل-خروج',
   'reload', 'اعادة-تشغيل'
