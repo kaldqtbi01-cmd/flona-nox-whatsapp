@@ -1,6 +1,6 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  👁️ كشف ViewOnce — النسخة الصحيحة
-//  🤖 𝙽𝚒𝚔𝚘𝚕𝚊 𝚃𝚎𝚜𝚕𝚊
+//  🪻 FLONA BOT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import {
@@ -256,7 +256,7 @@ let handler = async (m, { conn }) => {
 
     // ── إرسال ─────────────────────────────────────────────────────────────────
     try {
-        const cap = '🔓 تم الكشف!\n> ⚡ 𝐂𝐇𝐄𝐎𝐍 𝐁𝐎𝐓 ⚡'
+        const cap = '🔓 تم الكشف!\n> 🪻 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』 ⚡'
         if (media.type === 'image') {
             await conn.sendMessage(m.chat, { image: buf, caption: cap }, { quoted: m })
         } else if (media.type === 'video') {
