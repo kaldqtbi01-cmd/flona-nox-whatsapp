@@ -130,10 +130,13 @@ async function downloadMedia(conn, m, media) {
   throw new Error(errors.join(' | '))
 }
 
-const handler = async (m, { conn }) => {
+const handler = async (m, { conn, isOwner, isROwner }) => {
   const react = async text => {
     try { await conn.sendMessage(m.chat, { react: { text, key: m.key } }) } catch {}
   }
+
+  if (!isOwner && !isROwner)
+    return m.reply('❌ أمر فضح الوسائط متاح للمطورين فقط.')
 
   if (!m.quoted) {
     await react('❌')
