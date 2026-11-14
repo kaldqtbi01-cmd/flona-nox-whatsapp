@@ -1,16 +1,7 @@
 /*
-⌁ 𝐍𝐎𝐗 ⌁
-𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂
-
-「 𝐂𝐫𝐞𝐝𝐢𝐭𝐬 𝐛𝐲 𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 」
-「 لا تحذف الحقوق 🖤 」
-𝐍𝐎𝐗 channel
-https://whatsapp.com/channel/0029VbCeOCi7tkjC9bGs3U0l
-𝙎𝙃𝘼𝙉𝙆𝙎 channel
-https://whatsapp.com/channel/0029VbC5LLx6GcGDXZUmHP0y
- 📜 𝙏𝙝𝙞𝙨 𝙞𝙨 𝙩𝙝𝙚 𝙍𝙀𝙋𝙊 𝙡𝙞𝙣𝙠 𝙬𝙞𝙩𝙝 𝙖𝙡𝙡 𝙩𝙝𝙚 𝙘𝙤𝙙𝙚𝙨:
-⚡ https://github.com/SHANKS-CODE-1/CODE
-*/
+ * FLONA BOT — القائمة الرئيسية
+ * هذه القائمة مخصصة لمشروع FLONA BOT.
+ */
 
 import moment from "moment-timezone"
 import { prepareWAMessageMedia, generateWAMessageFromContent } from '@whiskeysockets/baileys'
@@ -19,6 +10,8 @@ import path from 'path'
 import axios from 'axios'
 
 const VIDEO_URL = 'https://files.catbox.moe/9n2xcd.mp4'
+const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
+const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
 const MENU_FILE = path.join(MENU_DIR, 'menu.mp4')
 
@@ -131,7 +124,7 @@ async function sendCategoryMenu(m, conn, tag) {
           interactiveMessage: {
             header: { hasMediaAttachment: true, videoMessage: mediaMessage.videoMessage },
             body: { text: txt },
-            footer: { text: "⚡ 𝙉𝙊𝙓 𝘽𝙊𝙏 " },
+            footer: { text: BRAND_NAME },
             nativeFlowMessage: {
               buttons: [
                 {
@@ -190,16 +183,17 @@ let handler = async (m, { conn, usedPrefix, args }) => {
 
     let txt = `
 ╔══════════════════════╗
-        🌓 Ｎｏｘ Ｂｏｔ 🌓
+        🪻 ${BRAND_NAME} 🪻
 ╚══════════════════════╝   
-> أهلاً بك في 𝐍𝐎𝐗
+> أهلاً بك في ${BRAND_NAME}
 نورتنا ✦ , ${tagUser}
 *الاوامر في اسفل القائمة*
 
 ${line}
 
 ▸ نـظـام
-• اسـم الـبـوت : ＃ 𝙽𝙾𝚇
+• اسـم الـبـوت : ${BRAND_NAME}
+• الـمـطـور : ${BRAND_DEV}
 • وقـت الـنـشـاط: ${uptimeStr}
 • الـوقـت الـحـالي: ${timeStr}
 
@@ -220,7 +214,7 @@ ${line}
 
     txt += `
 ${line}
-"شكراً لاستخدامك ＃ 𝙽𝙾𝚇 ، ونتمنى لك تجربة ممتعة ⚡"
+شكراً لاستخدامك 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』، ونتمنى لك تجربة ممتعة ⚡
 `
 
     await conn.sendMessage(m.chat, { react: { text: '‍🌓', key: m.key } })
@@ -233,14 +227,14 @@ ${line}
 
     const allTags = getActiveTags()
 
-    const shanksSections = [
+    const flonaSections = [
       {
-        title: "Ｎｏｘ Ｂｏｔ",
+        title: BRAND_NAME,
         highlight_label: "⚡ خيارات سريعة",
         rows: [
-          { title: "لـجـروبـات الـبـوت", description: "عرض جميع الجروبات الخاصة بالبوت", id: `${usedPrefix}جروبات-البوت` },
+          { title: "أقسام البوت", description: "عرض أقسام وأوامر FLONA", id: `${usedPrefix}قسم_المجموعات` },
           { title: "حـالـة الـنـظـام", description: "فحص السرعة والأداء", id: `${usedPrefix}ping` },
-          { title: "لـلـمـطـور", description: "مطور البوت 👑", id: `${usedPrefix}مطور` }
+          { title: "هوية البوت", description: "معلومات FLONA BOT", id: `${usedPrefix}مطور` }
         ]
       }
     ]
@@ -261,14 +255,14 @@ ${line}
               videoMessage: mediaMessage.videoMessage
             },
             body: { text: txt },
-            footer: { text: "𝙉𝙤𝙭 𝘽𝙤𝙩" },
+            footer: { text: BRAND_NAME },
             nativeFlowMessage: {
               buttons: [
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: "واجهة ＃ 𝙽𝙾𝚇 🌓",
-                    sections: shanksSections
+                    title: `${BRAND_NAME} 🌓`,
+                    sections: flonaSections
                   })
                 },
                 {
@@ -281,19 +275,19 @@ ${line}
               ],
               messageParamsJson: JSON.stringify({
                 limited_time_offer: {
-                  text: "𝙉𝙤𝙭 𝘽𝙤𝙩",
+                  text: BRAND_NAME,
                   url: "https://whatsapp.com",
-                  copy_code: "𝙉𝙤𝙭 𝘽𝙤𝙩",
+                  copy_code: BRAND_NAME,
                   expiration_time: 1754613436864329
                 },
                 bottom_sheet: {
                   in_thread_buttons_limit: 1,
                   divider_indices: [1],
-                  list_title: "واجهة ＃ 𝙽𝙾𝚇",
-                  button_title: "فتح قائمة ＃ 𝙽𝙾𝚇"
+                  list_title: BRAND_NAME,
+                  button_title: "فتح قائمة FLONA"
                 },
                 tap_target_configuration: {
-                  title: "▸ 𝙉𝙤𝙭 𝘽𝙤𝙩 ◂",
+                  title: `${BRAND_NAME} ◂`,
                   description: "القائمة الرئيسية",
                   canonical_url: "https://whatsapp.com",
                   domain: "https://whatsapp.com",
