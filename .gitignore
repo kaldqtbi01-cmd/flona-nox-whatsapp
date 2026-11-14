@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+# WhatsApp session — never commit or share
+auth_info_baileys/
+auth_info_baileys.bak-*/
+sessions/
+data/whatsapp.lock
+data/whatsapp-qr.png
+data/whatsapp-status.json
+tmp/
