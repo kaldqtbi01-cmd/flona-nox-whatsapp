@@ -55,6 +55,13 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
     // التفعيل الافتراضي يمنع ظهور رسالة التعطيل عند إنشاء إعدادات جديدة.
     // يمكن للمطور تعطيل الخاصية لاحقًا بوضع jadibotmd=false.
     if (botSettings.jadibotmd === false) return m.reply('⚠️ خاصية البوتات الفرعية معطلة.')
+    if (command === 'تنصيب' && !String(text || '').replace(/\D/g, '')) {
+        return m.reply(
+            `📱 أرسل رقم حساب البوت الفرعي مع الأمر.\n\n` +
+            `مثال:\n${usedPrefix}تنصيب 967715900175\n\n` +
+            `اكتب الرقم الدولي بدون علامة +، ثم أدخل الكود في واتساب الخاص بذلك الرقم.`
+        )
+    }
     if (conn.user.jid === m.sender) return
     let who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.fromMe ? conn.user.jid : m.sender
     let id = `${text ? text.replace(/\D/g, '') : who.split`@`[0]}`
