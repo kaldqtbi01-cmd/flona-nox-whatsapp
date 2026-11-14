@@ -1,43 +1,31 @@
-/*
-⌁ 𝐍𝐎𝐗 ⌁
-𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂
-
-「 𝐂𝐫𝐞𝐝𝐢𝐭𝐬 𝐛𝐲 𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 」
-「 لا تحذف الحقوق 🖤 」
-𝐍𝐎𝐗 channel
-https://whatsapp.com/channel/0029VbCeOCi7tkjC9bGs3U0l
-𝙎𝙃𝘼𝙉𝙆𝙎 channel
-https://whatsapp.com/channel/0029VbC5LLx6GcGDXZUmHP0y
- 📜 𝙏𝙝𝙞𝙨 𝙞𝙨 𝙩𝙝𝙚 𝙍𝙀𝙋𝙊 𝙡𝙞𝙣𝙠 𝙬𝙞𝙩𝙝 𝙖𝙡𝙡 𝙩𝙝𝙚 𝙘𝙤𝙙𝙚𝙨:
-⚡ https://github.com/SHANKS-CODE-1/CODE
-*/
+/* 🪻 FLONA BOT — قارئ ملفات المطور */
 
 import fs from 'fs'
 import path from 'path'
 
-let handler = async (m, { text, usedPrefix, command, conn }) => {
-
-  const ownerNumbers = ["963949597160", "201097786373"]
-  const sender = m.sender.split('@')[0]
-
-  if (!ownerNumbers.includes(sender)) {
+let handler = async (m, { text, usedPrefix, command, isOwner, isROwner }) => {
+  if (!isOwner && !isROwner) {
     return m.reply(`🚫 هذا الأمر خاص بالمطور فقط`)
   }
 
   if (!text) {
     return m.reply(`
-╭━━━❖ 𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 𝑺𝒀𝑺𝑻𝑬𝑴 ❖━━━╮
+╭━━━❖ 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』 ❖━━━╮
 ┃ ⚡ أوامر الجلب
 ┃
 ┃ ✦ ${usedPrefix + command} .
 ┃ ✦ ${usedPrefix + command} plugins
 ┃ ✦ ${usedPrefix + command} settings.js
 ┃
-╰━━━❖  𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 𝑴𝑶𝑫 ❖━━━╯
+╰━━━❖  مطور FLONA ❖━━━╯
 `)
   }
 
-  const targetPath = path.join(process.cwd(), text)
+  const root = path.resolve(process.cwd())
+  const targetPath = path.resolve(root, text)
+  if (targetPath !== root && !targetPath.startsWith(root + path.sep)) {
+    return m.reply('❌ لا يمكن قراءة مسار خارج مجلد المشروع.')
+  }
 
   try {
 
@@ -50,7 +38,7 @@ let handler = async (m, { text, usedPrefix, command, conn }) => {
       const files = fs.readdirSync(targetPath)
 
       let teks = `
-╭━━━❖ 📁 𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 𝑭𝑰𝑳𝑬 𝑴𝑨𝑵𝑨𝑮𝑬𝑹 ❖━━━╮
+╭━━━❖ 📁 𝐅𝐋𝐎𝐍𝐀 𝐅𝐈𝐋𝐄 𝐌𝐀𝐍𝐀𝐆𝐄𝐑 ❖━━━╮
 
 `
 
@@ -73,7 +61,7 @@ let handler = async (m, { text, usedPrefix, command, conn }) => {
       }
 
       return m.reply(`
-╭━━━❖ 📄 𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 𝑹𝑬𝑨𝑫𝑬𝑹 ❖━━━╮
+╭━━━❖ 📄 𝐅𝐋𝐎𝐍𝐀 𝐑𝐄𝐀𝐃𝐄𝐑 ❖━━━╮
 
 ${content}
 
