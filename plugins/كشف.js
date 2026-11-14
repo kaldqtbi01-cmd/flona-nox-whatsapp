@@ -1,291 +1,162 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  👁️ كشف ViewOnce — النسخة الصحيحة
-//  🪻 FLONA BOT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/*
+ * 🪻 FLONA BOT — كشف الوسائط ذات العرض لمرة واحدة
+ * يدعم viewOnceMessage و V2 و V2Extension و ephemeral.
+ */
 
 import {
-    downloadContentFromMessage,
-    downloadMediaMessage,
-    proto,
+  downloadContentFromMessage,
+  downloadMediaMessage,
+  proto,
 } from '@whiskeysockets/baileys'
 
-const VO_WRAPPERS = [
-    'viewOnceMessageV2Extension',
-    'viewOnceMessageV2',
-    'viewOnceMessage',
+const WRAPPERS = [
+  'viewOnceMessageV2Extension',
+  'viewOnceMessageV2',
+  'viewOnceMessage',
 ]
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  كشف ViewOnce بكل الطرق الممكنة
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function detectViewOnce(m) {
-    // rawQuoted = الرسالة الكاملة من contextInfo
-    const rawQuoted = m.msg?.contextInfo?.quotedMessage || {}
+const MEDIA = [
+  ['imageMessage', 'image'],
+  ['videoMessage', 'video'],
+  ['audioMessage', 'audio'],
+]
 
-    // الطريقة 1: mtype بتاع m.quoted هو wrapper مباشرة
-    if (VO_WRAPPERS.includes(m.quoted?.mtype)) {
-        return { raw: rawQuoted, wrapper: m.quoted.mtype }
-    }
-
-    // الطريقة 2: rawQuoted فيه wrapper مباشرة
-    for (const w of VO_WRAPPERS) {
-        if (rawQuoted[w]) return { raw: rawQuoted, wrapper: w }
-    }
-
-    // الطريقة 3: جوا ephemeral
-    for (const w of VO_WRAPPERS) {
-        if (rawQuoted?.ephemeralMessage?.message?.[w]) {
-            return { raw: rawQuoted.ephemeralMessage.message, wrapper: w }
-        }
-    }
-
-    // الطريقة 4: m.quoted نفسه فيه viewOnce = true على الـ media
-    // ده بيحصل لو simple.js فك الـ wrapper تلقائياً
-    const quotedMsg = m.quoted
-    if (quotedMsg) {
-        const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage']
-        for (const mt of mediaTypes) {
-            const obj = quotedMsg[mt] || rawQuoted?.[mt]
-            if (obj?.viewOnce === true) {
-                // بنبني raw مصطنع
-                return {
-                    raw: { [mt]: obj },
-                    wrapper: null,
-                    directMedia: { type: mt.replace('Message', ''), key: mt, obj }
-                }
-            }
-        }
-    }
-
-    // الطريقة 5: m.quoted.message فيه الـ media مع viewOnce
-    const innerMsg = m.quoted?.message || {}
-    for (const mt of ['imageMessage', 'videoMessage', 'audioMessage']) {
-        if (innerMsg[mt]?.viewOnce) {
-            return {
-                raw: innerMsg,
-                wrapper: null,
-                directMedia: { type: mt.replace('Message', ''), key: mt, obj: innerMsg[mt] }
-            }
-        }
-    }
-
-    return null
+function timeout(task, ms = 15_000) {
+  return Promise.race([
+    Promise.resolve().then(task),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('انتهت مهلة تنزيل الوسائط')), ms)),
+  ])
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  استخراج الـ media object من الـ wrapper
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function extractMedia(detection) {
-    // لو عندنا directMedia جاهز
-    if (detection.directMedia) return detection.directMedia
+function quotedRaw(m) {
+  return m.msg?.contextInfo?.quotedMessage || m.quoted?.vM?.message || {}
+}
 
-    const { raw, wrapper } = detection
-    let innerMsg = wrapper ? (raw[wrapper]?.message || {}) : raw
-
-    // شيل ephemeral
-    if (innerMsg.ephemeralMessage?.message) {
-        innerMsg = innerMsg.ephemeralMessage.message
+function unwrap(message) {
+  let current = message || {}
+  let changed = true
+  while (changed && current) {
+    changed = false
+    for (const name of WRAPPERS) {
+      if (current[name]?.message) {
+        current = current[name].message
+        changed = true
+        break
+      }
     }
-
-    const mediaTypes = [
-        { key: 'imageMessage', type: 'image' },
-        { key: 'videoMessage', type: 'video' },
-        { key: 'audioMessage', type: 'audio' },
-    ]
-
-    for (const { key, type } of mediaTypes) {
-        if (innerMsg[key]) {
-            const obj = { ...innerMsg[key] }
-            delete obj.viewOnce
-            return { type, key, obj }
-        }
+    if (!changed && current.ephemeralMessage?.message) {
+      current = current.ephemeralMessage.message
+      changed = true
     }
-    return null
+    if (!changed && current.documentWithCaptionMessage?.message) {
+      current = current.documentWithCaptionMessage.message
+      changed = true
+    }
+  }
+  return current || {}
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  8 طرق تحميل
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function findMedia(m) {
+  const inner = unwrap(quotedRaw(m))
+  for (const [key, type] of MEDIA) {
+    if (inner[key]) {
+      return { key, type, message: { ...inner[key] } }
+    }
+  }
 
-async function M1_stream(media) {
-    if (!media.obj?.url && !media.obj?.directPath) throw new Error('مفيش url')
-    const stream = await downloadContentFromMessage(media.obj, media.type)
-    const chunks = []
-    for await (const c of stream) chunks.push(c)
-    const buf = Buffer.concat(chunks)
-    if (buf?.length > 100) return buf
-    throw new Error('buffer فاضي')
+  // بعض نسخ simple.js تفك الغلاف داخل m.quoted مباشرة.
+  for (const [key, type] of MEDIA) {
+    const value = m.quoted?.[key]
+    if (value) return { key, type, message: { ...value } }
+  }
+  return null
 }
 
-async function M2_simpleDownload(m) {
-    const buf = await m.quoted.download()
-    if (buf?.length > 100) return buf
-    throw new Error('buffer فاضي')
+async function readStream(message, type) {
+  if (!message?.url && !message?.directPath) throw new Error('رابط الوسائط غير موجود')
+  const stream = await downloadContentFromMessage(message, type)
+  const chunks = []
+  for await (const chunk of stream) chunks.push(chunk)
+  const buffer = Buffer.concat(chunks)
+  if (buffer.length < 100) throw new Error('الملف الذي تم تنزيله فارغ')
+  return buffer
 }
 
-async function M3_downloadM(conn, media) {
-    if (!conn.downloadM) throw new Error('conn.downloadM غير موجود')
-    const buf = await conn.downloadM(media.obj, media.type)
-    if (buf?.length > 100) return buf
-    throw new Error('buffer فاضي')
-}
+async function downloadMedia(conn, m, media) {
+  const errors = []
 
-async function M4_fakeWM(conn, m, media) {
-    const vM = m.quoted?.vM || m.quoted?.fakeObj
-    if (!vM) throw new Error('مفيش vM')
-    const fakeWM = proto.WebMessageInfo.fromObject({
-        key: vM.key,
-        message: { [media.key]: media.obj },
-        ...(m.isGroup ? { participant: m.quoted.sender } : {})
-    })
-    const buf = await downloadMediaMessage(fakeWM, 'buffer', {}, {
-        logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} },
+  const methods = [
+    ['downloadM', () => conn.downloadM?.(media.message, media.type)],
+    ['stream', () => readStream(media.message, media.type)],
+    ['downloadMediaMessage', async () => {
+      const original = m.quoted?.vM || m.quoted?.fakeObj
+      if (!original) throw new Error('بيانات الرسالة الأصلية غير موجودة')
+      const fake = proto.WebMessageInfo.fromObject({
+        key: original.key,
+        message: { [media.key]: media.message },
+        ...(m.isGroup ? { participant: m.quoted.sender } : {}),
+      })
+      return downloadMediaMessage(fake, 'buffer', {}, {
+        logger: { info() {}, error() {}, warn() {}, debug() {} },
         reuploadRequest: conn.updateMediaMessage?.bind(conn),
-    })
-    if (buf?.length > 100) return buf
-    throw new Error('buffer فاضي')
-}
+      })
+    }],
+  ]
 
-async function M5_rawVM(conn, m) {
-    const vM = m.quoted?.vM || m.quoted?.fakeObj
-    if (!vM) throw new Error('مفيش vM')
-    const buf = await downloadMediaMessage(vM, 'buffer', {}, {
-        logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} },
-        reuploadRequest: conn.updateMediaMessage?.bind(conn),
-    })
-    if (buf?.length > 100) return buf
-    throw new Error('buffer فاضي')
-}
-
-async function M6_reupload(conn, m, media) {
-    if (!conn.updateMediaMessage) throw new Error('updateMediaMessage مش موجود')
-    const vM = m.quoted?.vM || m.quoted?.fakeObj
-    if (!vM) throw new Error('مفيش vM')
-    const fakeWM = proto.WebMessageInfo.fromObject({
-        key: vM.key,
-        message: { [media.key]: media.obj },
-        ...(m.isGroup ? { participant: m.quoted.sender } : {})
-    })
-    const updated = await conn.updateMediaMessage(fakeWM)
-    const buf = await downloadMediaMessage(updated, 'buffer', {}, {
-        logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} }
-    })
-    if (buf?.length > 100) return buf
-    throw new Error('buffer فاضي بعد reupload')
-}
-
-async function M7_forward(conn, m) {
-    const vM = m.quoted?.vM || m.quoted?.fakeObj
-    if (!vM) throw new Error('مفيش vM')
-    await conn.copyNForward(m.chat, vM, true, { readViewOnce: true })
-    return 'forwarded'
-}
-
-async function M8_directForward(conn, m) {
-    const vM = m.quoted?.vM || m.quoted?.fakeObj
-    if (!vM) throw new Error('مفيش vM')
-    await conn.sendMessage(m.chat, { forward: vM, force: true }, {})
-    return 'forwarded'
-}
-
-function withTimeout(task, ms = 20_000) {
-    return Promise.race([
-        Promise.resolve().then(task),
-        new Promise((_, reject) => setTimeout(() => reject(new Error(`انتهت مهلة التنزيل بعد ${ms / 1000} ثانية`)), ms)),
-    ])
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  Handler
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-let handler = async (m, { conn }) => {
-
-    const react = async (e) => {
-        try { await conn.sendMessage(m.chat, { react: { text: e, key: m.key } }) } catch {}
-    }
-
-    if (!m.quoted) {
-        await react('❌')
-        return m.reply('❌ رد على رسالة ViewOnce 🔒 أولاً')
-    }
-
-    // ── كشف ViewOnce ──────────────────────────────────────────────────────────
-    const detection = detectViewOnce(m)
-
-    if (!detection) {
-        await react('❌')
-        return m.reply('❌ دي مش رسالة ViewOnce\nرد على رسالة فيها 🔒')
-    }
-
-    await react('⏳')
-
-    // ── استخراج الـ media ─────────────────────────────────────────────────────
-    const media = extractMedia(detection)
-
-    if (!media) {
-        await react('❌')
-        return m.reply('❌ مش قادر أوصل للميديا')
-    }
-
-    // ── 8 طرق تحميل ──────────────────────────────────────────────────────────
-    const errors = []
-    let buf = null
-
-    const methods = [
-        ['M7 copyNForward',  () => M7_forward(conn, m)],
-        ['M4 fakeWM',        () => M4_fakeWM(conn, m, media)],
-        ['M1 stream',        () => M1_stream(media)],
-        ['M2 simpleDownload',() => M2_simpleDownload(m)],
-        ['M3 downloadM',     () => M3_downloadM(conn, media)],
-        ['M5 rawVM',         () => M5_rawVM(conn, m)],
-        ['M6 reupload',      () => M6_reupload(conn, m, media)],
-        ['M8 directForward', () => M8_directForward(conn, m)],
-    ]
-
-    for (const [name, fn] of methods) {
-        try {
-            const res = await withTimeout(fn)
-            if (res === 'forwarded') { await react('✅'); return }
-            buf = res
-            break
-        } catch (e) {
-            const message = e?.message || String(e)
-            errors.push(`${name}: ${message}`)
-            console.warn(`[VIEWONCE] ${name}: ${message}`)
-        }
-    }
-
-    if (!buf) {
-        await react('❌')
-        return m.reply(
-            '❌ فشلت كل الطرق\n\n' +
-            '• الرسالة ممكن تكون انتهت من سيرفرات واتساب\n\n' +
-            '[Debug]\n' + errors.map(e => `• ${e}`).join('\n')
-        )
-    }
-
-    // ── إرسال ─────────────────────────────────────────────────────────────────
+  for (const [name, method] of methods) {
     try {
-        const cap = '🔓 تم الكشف!\n> 🪻 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』 ⚡'
-        if (media.type === 'image') {
-            await conn.sendMessage(m.chat, { image: buf, caption: cap }, { quoted: m })
-        } else if (media.type === 'video') {
-            await conn.sendMessage(m.chat, { video: buf, caption: cap }, { quoted: m })
-        } else if (media.type === 'audio') {
-            await conn.sendMessage(m.chat, {
-                audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true
-            }, { quoted: m })
-        }
-        await react('✅')
-    } catch (e) {
-        await react('❌')
-        m.reply('❌ فشل الإرسال: ' + e.message)
+      const result = await timeout(method)
+      if (Buffer.isBuffer(result) && result.length > 100) return result
+      if (result?.length > 100) return Buffer.from(result)
+      throw new Error('النتيجة فارغة')
+    } catch (error) {
+      errors.push(`${name}: ${error?.message || error}`)
+      console.warn(`[VIEWONCE] ${name} failed: ${error?.message || error}`)
     }
+  }
+
+  throw new Error(errors.join(' | '))
 }
 
-handler.help    = ['كشف']
-handler.tags    = ['tools']
-handler.command = /^(كشف|فضح|vv|viewonce|vo)$/i
+const handler = async (m, { conn }) => {
+  const react = async text => {
+    try { await conn.sendMessage(m.chat, { react: { text, key: m.key } }) } catch {}
+  }
+
+  if (!m.quoted) {
+    await react('❌')
+    return m.reply('❌ اعمل رد على صورة أو فيديو ViewOnce أولًا، ثم أرسل .فضح')
+  }
+
+  const media = findMedia(m)
+  if (!media) {
+    await react('❌')
+    return m.reply('❌ لم أتعرف على الرسالة كوسائط ViewOnce. أرسل ViewOnce جديدة واعمل ردًا عليها مباشرة.')
+  }
+
+  await react('⏳')
+
+  try {
+    const buffer = await downloadMedia(conn, m, media)
+    const caption = '🔓 تم استخراج الوسائط\n> 🪻 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』'
+
+    if (media.type === 'image') {
+      await conn.sendMessage(m.chat, { image: buffer, caption }, { quoted: m })
+    } else if (media.type === 'video') {
+      await conn.sendMessage(m.chat, { video: buffer, caption, mimetype: 'video/mp4' }, { quoted: m })
+    } else {
+      await conn.sendMessage(m.chat, { audio: buffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: m })
+    }
+    await react('✅')
+  } catch (error) {
+    console.error('[VIEWONCE FINAL]', error)
+    await react('❌')
+    return m.reply('❌ تعذر تنزيل الوسائط. أرسل ViewOnce جديدة، واعمل ردًا عليها فورًا، ثم أرسل .فضح مرة واحدة.')
+  }
+}
+
+handler.help = ['فضح', 'كشف']
+handler.tags = ['tools']
+handler.command = /^(فضح|كشف|vv|viewonce|vo)$/i
 
 export default handler
