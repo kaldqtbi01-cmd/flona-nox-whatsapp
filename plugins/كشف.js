@@ -60,6 +60,14 @@ function unwrap(message) {
 
 function findMedia(m) {
   const stored = m.quoted?.id ? store.loadMessage(m.quoted.chat, m.quoted.id) : null
+  // الأولوية للرسالة الأصلية؛ نسخة m.quoted قد تكون منزوعة mediaKey أو directPath.
+  const storedInner = unwrap(stored?.message)
+  if (stored) {
+    for (const [key, type] of MEDIA) {
+      if (storedInner[key]) return { key, type, message: { ...storedInner[key] }, stored }
+    }
+  }
+
   // هذا هو المسار الموثوق في simple.js: يفك ViewOnce ويحتفظ بمفتاح الوسائط.
   const prepared = m.quoted?.mediaMessage
   if (prepared) {
