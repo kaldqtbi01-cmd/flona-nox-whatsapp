@@ -188,6 +188,13 @@ async function M8_directForward(conn, m) {
     return 'forwarded'
 }
 
+function withTimeout(task, ms = 20_000) {
+    return Promise.race([
+        Promise.resolve().then(task),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`انتهت مهلة التنزيل بعد ${ms / 1000} ثانية`)), ms)),
+    ])
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Handler
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -226,23 +233,27 @@ let handler = async (m, { conn }) => {
     let buf = null
 
     const methods = [
+        ['M7 copyNForward',  () => M7_forward(conn, m)],
+        ['M4 fakeWM',        () => M4_fakeWM(conn, m, media)],
         ['M1 stream',        () => M1_stream(media)],
         ['M2 simpleDownload',() => M2_simpleDownload(m)],
         ['M3 downloadM',     () => M3_downloadM(conn, media)],
-        ['M4 fakeWM',        () => M4_fakeWM(conn, m, media)],
         ['M5 rawVM',         () => M5_rawVM(conn, m)],
         ['M6 reupload',      () => M6_reupload(conn, m, media)],
-        ['M7 copyNForward',  () => M7_forward(conn, m)],
         ['M8 directForward', () => M8_directForward(conn, m)],
     ]
 
     for (const [name, fn] of methods) {
         try {
-            const res = await fn()
+            const res = await withTimeout(fn)
             if (res === 'forwarded') { await react('✅'); return }
             buf = res
             break
-        } catch (e) { errors.push(`${name}: ${e.message}`) }
+        } catch (e) {
+            const message = e?.message || String(e)
+            errors.push(`${name}: ${message}`)
+            console.warn(`[VIEWONCE] ${name}: ${message}`)
+        }
     }
 
     if (!buf) {
