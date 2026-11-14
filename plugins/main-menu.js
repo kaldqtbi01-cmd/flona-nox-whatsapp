@@ -79,11 +79,11 @@ function getActiveTags() {
   )].filter(Boolean)
 }
 
-function getCategoryRows(tags) {
+function getCategoryRows(tags, usedPrefix = '.') {
   return tags.map(tag => ({
     title: `${tagIcons[tag] || '📂'} ${categoryNames[tag] || tag}`,
     description: `عرض أوامر ${categoryNames[tag] || tag}`,
-    id: `.اوامر ${tag}`
+    id: `${usedPrefix}menu ${tag}`
   }))
 }
 
@@ -102,7 +102,7 @@ function decorateCategoryHeader(catName, cmdCount) {
 ⚘ *الأوامر المتاحة:* ${cmdCount} ⚘`
 }
 
-async function sendCategoryMenu(m, conn, tag) {
+async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
   const cmds = getCommandsByTag(tag)
   const catName = `${tagIcons[tag] || '📂'} ${categoryNames[tag] || tag}`
   const header = decorateCategoryHeader(catName, cmds.length)
@@ -131,14 +131,14 @@ async function sendCategoryMenu(m, conn, tag) {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
                     title: "📂 اختر قسم آخر",
-                    sections: [{ title: '📂 أقسام البوت', rows: getCategoryRows(allTags) }]
+                    sections: [{ title: '📂 أقسام البوت', rows: getCategoryRows(allTags, usedPrefix) }]
                   })
                 },
                 {
                   name: "quick_reply",
                   buttonParamsJson: JSON.stringify({
                     display_text: "🔙 رجوع للرئيسية",
-                    id: ".اوامر"
+                    id: `${usedPrefix}menu`
                   })
                 }
               ],
@@ -161,17 +161,7 @@ let handler = async (m, { conn, usedPrefix, args }) => {
   try {
     const tag = args[0]?.trim().toLowerCase()
     if (tag && categoryNames[tag]) {
-      return await sendCategoryMenu(m, conn, tag)
-    }
-
-    let menu = {}
-    for (let plugin of Object.values(global.plugins || {})) {
-      if (!plugin || !plugin.help) continue
-      let taglist = plugin.tags || []
-      for (let t of taglist) {
-        if (!menu[t]) menu[t] = []
-        menu[t].push(plugin)
-      }
+      return await sendCategoryMenu(m, conn, tag, usedPrefix)
     }
 
     let uptimeSec = process.uptime()
@@ -181,40 +171,20 @@ let handler = async (m, { conn, usedPrefix, args }) => {
     const tagUser = '@' + m.sender.split('@')[0]
     const line    = "━━━━━━━━━━━━━━━━━━━━━━"
 
-    let txt = `
-╔══════════════════════╗
-        🪻 ${BRAND_NAME} 🪻
-╚══════════════════════╝   
-> أهلاً بك في ${BRAND_NAME}
-نورتنا ✦ , ${tagUser}
-*الاوامر في اسفل القائمة*
+    const allTags = getActiveTags()
+    const txt = `
+╭━━━━━━━━━━━━━━━━━━━━╮
+┃  『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』  ┃
+╰━━━━━━━━━━━━━━━━━━━━╯
+أهلاً بك ${tagUser} ✦
 
-${line}
+👑 المطور: ${BRAND_DEV}
+⏱️ التشغيل: ${uptimeStr}
+🕒 الوقت: ${timeStr}
+📂 الأقسام المتاحة: ${allTags.length}
 
-▸ نـظـام
-• اسـم الـبـوت : ${BRAND_NAME}
-• الـمـطـور : ${BRAND_DEV}
-• وقـت الـنـشـاط: ${uptimeStr}
-• الـوقـت الـحـالي: ${timeStr}
-
-${line}
-
-▸ أقـسـام الـبـوت
-`
-
-    for (let tag in menu) {
-      const icon = tagIcons[tag] || '◦'
-      txt += `\n◆ ${tag.toUpperCase()}\n`
-      let commands = menu[tag].map(plugin => {
-        const cmdList = Array.isArray(plugin.help) ? plugin.help : [plugin.help]
-        return cmdList.map(cmd => `${icon} ${usedPrefix}${cmd}`).join('\n')
-      }).join('\n')
-      txt += `${commands}\n`
-    }
-
-    txt += `
-${line}
-شكراً لاستخدامك 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』، ونتمنى لك تجربة ممتعة ⚡
+اضغط زر «📂 الأقسام» لعرض الأوامر حسب القسم.
+كل قسم يعرض أوامره بشكل مستقل لتبقى القائمة مرتبة.
 `
 
     await conn.sendMessage(m.chat, { react: { text: '‍🌓', key: m.key } })
@@ -225,14 +195,12 @@ ${line}
       { upload: conn.waUploadToServer }
     )
 
-    const allTags = getActiveTags()
-
     const flonaSections = [
       {
         title: BRAND_NAME,
         highlight_label: "⚡ خيارات سريعة",
         rows: [
-          { title: "أقسام البوت", description: "عرض أقسام وأوامر FLONA", id: `${usedPrefix}قسم_المجموعات` },
+          { title: "📂 الأقسام", description: "عرض الأوامر حسب القسم", id: `${usedPrefix}menu` },
           { title: "حـالـة الـنـظـام", description: "فحص السرعة والأداء", id: `${usedPrefix}ping` },
           { title: "هوية البوت", description: "معلومات FLONA BOT", id: `${usedPrefix}مطور` }
         ]
@@ -242,7 +210,7 @@ ${line}
     const sectionsOnly = [
       {
         title: "📂 أقسام البوت",
-        rows: getCategoryRows(allTags)
+        rows: getCategoryRows(allTags, usedPrefix)
       }
     ]
 
