@@ -1,4 +1,4 @@
-let handler = async (m, { conn, isROwner }) => { if (!isROwner) return
+let handler = async (m, { conn, isROwner, isAdmin }) => { if (!isROwner) return
   if (!m.isGroup) return m.reply('❌ للمجموعات فقط')
   if (!isAdmin && !isROwner) return m.reply('❌ للأدمن فقط')
 
