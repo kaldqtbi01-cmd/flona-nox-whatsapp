@@ -62,7 +62,9 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
             `اكتب الرقم الدولي بدون علامة +، ثم أدخل الكود في واتساب الخاص بذلك الرقم.`
         )
     }
-    if (conn.user.jid === m.sender) return
+    // اسمح للمالك بإنشاء بوت فرعي من نفس رقم البوت الأساسي.
+    // الحماية من رسائل البوت الذاتية تبقى مفعلة لغير المالك.
+    if (conn.user.jid === m.sender && !isOwner) return
     let who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.fromMe ? conn.user.jid : m.sender
     let id = `${text ? text.replace(/\D/g, '') : who.split`@`[0]}`
     let pathGataJadiBot = path.join('./jadibts/', id)
