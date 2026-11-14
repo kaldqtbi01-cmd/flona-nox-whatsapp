@@ -221,6 +221,15 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, isROwner }) 
     return m.reply(`🚫 تم تسجيل عدم التنفيذ ومنعك مؤقتًا من ألعاب الأحكام.\nيمكن للمالك فك المنع بأمر ${prefix}فك_عقوبة @منشن`)
   }
 
+  if (/^احكام_الغاء$/i.test(action)) {
+    if (!game) return m.reply('✅ لا توجد لعبة أحكام نشطة لإلغائها.')
+    if (game.host !== sender && !isOwner && !isROwner)
+      return m.reply('❌ إلغاء اللعبة متاح لمن بدأ الجولة أو للمطور فقط.')
+    clearTimer(chat)
+    activeGames.delete(chat)
+    return m.reply('🛑 تم إلغاء لعبة الأحكام وإيقاف المؤقت دون تسجيل أي عقوبة.')
+  }
+
   if (/^حالة_حكم$/i.test(action)) {
     if (!game) return m.reply('لا توجد جولة أحكام نشطة.')
     const remaining = game.deadline ? Math.max(0, Math.ceil((game.deadline - Date.now()) / 60000)) : null
@@ -250,8 +259,8 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, isROwner }) 
   return m.reply(help(prefix))
 }
 
-handler.help = ['أحكام', 'اختيار_حكم 1', 'قبول_حكم', 'تنفيذ_حكم', 'رفض_حكم', 'حالة_حكم', 'عقوبات', 'فك_عقوبة']
+handler.help = ['أحكام', 'اختيار_حكم 1', 'قبول_حكم', 'تنفيذ_حكم', 'رفض_حكم', 'احكام_الغاء', 'حالة_حكم', 'عقوبات', 'فك_عقوبة']
 handler.tags = ['games']
-handler.command = /^(أحكام|احكام|حكم_صندوق|اختيار_حكم|قبول_حكم|تنفيذ_حكم|رفض_حكم|حالة_حكم|عقوبات|فك_عقوبة|سجل_عقوبات|مساعدة_الأحكام|مساعدة_حكم|احكام_مساعدة)$/i
+handler.command = /^(أحكام|احكام|حكم_صندوق|اختيار_حكم|قبول_حكم|تنفيذ_حكم|رفض_حكم|احكام_الغاء|حالة_حكم|عقوبات|فك_عقوبة|سجل_عقوبات|مساعدة_الأحكام|مساعدة_حكم|احكام_مساعدة)$/i
 
 export default handler
