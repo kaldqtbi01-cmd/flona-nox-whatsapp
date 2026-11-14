@@ -57,6 +57,14 @@ function unwrap(message) {
 }
 
 function findMedia(m) {
+  // هذا هو المسار الموثوق في simple.js: يفك ViewOnce ويحتفظ بمفتاح الوسائط.
+  const prepared = m.quoted?.mediaMessage
+  if (prepared) {
+    for (const [key, type] of MEDIA) {
+      if (prepared[key]) return { key, type, message: { ...prepared[key] }, prepared: true }
+    }
+  }
+
   const inner = unwrap(quotedRaw(m))
   for (const [key, type] of MEDIA) {
     if (inner[key]) {
@@ -86,6 +94,7 @@ async function downloadMedia(conn, m, media) {
   const errors = []
 
   const methods = [
+    ['quoted.download', () => m.quoted?.download?.()],
     ['downloadM', () => conn.downloadM?.(media.message, media.type)],
     ['stream', () => readStream(media.message, media.type)],
     ['downloadMediaMessage', async () => {
