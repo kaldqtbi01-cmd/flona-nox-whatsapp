@@ -380,9 +380,14 @@ export async function handler(chatUpdate) {
             return
         }
 
+        // نفّذ أول إضافة مطابقة فقط. بعض نسخ المشروع القديمة تحتوي على
+        // أسماء أوامر مشتركة بين أكثر من إضافة، وتشغيلها كلها يرسل عدة ردود
+        // أو عدة قوائم لنفس الرسالة.
+        let commandHandled = false
         for (const name in global.plugins) {
             const plugin = global.plugins[name]
             if (!plugin || plugin.disabled) continue
+            if (commandHandled) break
             const __filename = join(___dirname, name)
 
             if (typeof plugin.all === "function") {
@@ -496,6 +501,7 @@ export async function handler(chatUpdate) {
 
                 try {
                     await plugin.call(this, m, extra)
+                    commandHandled = true
                 } catch (err) {
                     m.error = err
                     console.error(err)
@@ -512,6 +518,7 @@ export async function handler(chatUpdate) {
                             this.sendMessage(_errJid, { text: _errText }).catch(() => {})
                         )
                     } catch {}
+                    commandHandled = true
                 } finally {
                     if (typeof plugin.after === "function") {
                         try { await plugin.after.call(this, m, extra) } catch (e) { console.error(e) }

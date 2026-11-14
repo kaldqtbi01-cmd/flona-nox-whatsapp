@@ -162,15 +162,16 @@ let handler = async (m, { args, usedPrefix, command }) => {
   const chat = m.chat
   const sender = m.sender
   const prefix = usedPrefix || '.'
-  const action = String(command || '').toLowerCase()
+  const rawAction = String(command || '').toLowerCase()
+  const action = rawAction === 'مساعدة_التحدي' ? 'مساعدة' : rawAction.replace(/^تحدي[_-]/, '')
   const arg = String(args?.[0] || '').toLowerCase()
   let g = games.get(chat)
 
   if (/^(تحدي|تحدى|challenge)$/i.test(action)) {
-    if (g) return m.reply(`⚠️ يوجد تحدي قائم بالفعل.\n${scoreText(g)}\nاكتب ${prefix}انضم بنت أو ${prefix}انضم ولد.`)
+    if (g) return m.reply(`⚠️ يوجد تحدي قائم بالفعل.\n${scoreText(g)}\nاكتب ${prefix}تحدي_انضم بنت أو ${prefix}تحدي_انضم ولد.`)
     g = { players: {}, scores: { girls: 0, boys: 0 }, maxQuestions: 15, questionNo: 0, used: [], question: null, answered: false, started: false, host: sender, startedAt: Date.now(), winner: null, verdict: null }
     games.set(chat, g)
-    return m.reply(`╭──「 🎯 تحدي البنات والشباب 」──╮\n│ تم فتح التسجيل!\n│ كل عضو يختار فريقه.\n╰──────────────────╯\n\nللانضمام:\n👧 ${prefix}انضم بنت\n👦 ${prefix}انضم ولد\n\nبعد انضمام اللاعبين اكتب ${prefix}ابدأ\nعدد الجولات: *15*`)
+    return m.reply(`╭──「 🎯 تحدي البنات والشباب 」──╮\n│ تم فتح التسجيل!\n│ كل عضو يختار فريقه.\n╰──────────────────╯\n\nللانضمام:\n👧 ${prefix}تحدي_انضم بنت\n👦 ${prefix}تحدي_انضم ولد\n\nبعد انضمام اللاعبين اكتب ${prefix}تحدي_ابدأ\nعدد الجولات: *15*`)
   }
 
   if (!g) return m.reply(`لا يوجد تحدي حالي. اكتب ${prefix}تحدي لبدء التسجيل.`)
@@ -178,7 +179,7 @@ let handler = async (m, { args, usedPrefix, command }) => {
   if (/^(انضم|join)$/i.test(action)) {
     if (g.started) return m.reply('❌ بدأ التحدي، لا يمكن الانضمام الآن.')
     const team = /^(بنت|بنات|girls|girl)$/i.test(arg) ? 'girls' : /^(ولد|شباب|boys|boy)$/i.test(arg) ? 'boys' : null
-    if (!team) return m.reply(`اختر فريقك: ${prefix}انضم بنت أو ${prefix}انضم ولد`)
+    if (!team) return m.reply(`اختر فريقك: ${prefix}تحدي_انضم بنت أو ${prefix}تحدي_انضم ولد`)
     g.players[sender] = { team, name: cleanName(m), points: 0 }
     return m.reply(`✅ انضم *${cleanName(m)}* إلى ${teamName(team)}!\n\n${playersText(g)}`)
   }
@@ -195,21 +196,21 @@ let handler = async (m, { args, usedPrefix, command }) => {
   }
 
   if (/^(سؤال|السؤال|next|التالي)$/i.test(action)) {
-    if (!g.started) return m.reply(`لم يبدأ التحدي. اكتب ${prefix}ابدأ`)
+    if (!g.started) return m.reply(`لم يبدأ التحدي. اكتب ${prefix}تحدي_ابدأ`)
     if (g.question && !g.answered) return m.reply(`السؤال الحالي لم تتم الإجابة عليه بعد:\n\n${questionText(g, prefix)}`)
-    if (g.questionNo >= g.maxQuestions) return m.reply(`انتهت الجولات! اكتب ${prefix}نتيجة`)
+    if (g.questionNo >= g.maxQuestions) return m.reply(`انتهت الجولات! اكتب ${prefix}تحدي_نتيجة`)
     newQuestion(g)
     return m.reply(questionText(g, prefix))
   }
 
   if (/^(جاوب|اجابة|إجابة|answer)$/i.test(action)) {
-    if (!g.started) return m.reply(`لم يبدأ التحدي. اكتب ${prefix}ابدأ`)
-    if (g.answered) return m.reply(`تمت الإجابة عن هذا السؤال. اكتب ${prefix}سؤال للسؤال التالي.`)
+    if (!g.started) return m.reply(`لم يبدأ التحدي. اكتب ${prefix}تحدي_ابدأ`)
+    if (g.answered) return m.reply(`تمت الإجابة عن هذا السؤال. اكتب ${prefix}تحدي_سؤال للسؤال التالي.`)
     const player = g.players[sender]
-    if (!player) return m.reply(`يجب أن تنضم لفريق أولًا: ${prefix}انضم بنت أو ${prefix}انضم ولد`)
+    if (!player) return m.reply(`يجب أن تنضم لفريق أولًا: ${prefix}تحدي_انضم بنت أو ${prefix}تحدي_انضم ولد`)
     const answer = normalizeAnswer(args.join(' '))
     const correctAnswer = normalizeAnswer(g.question.answer || g.question.a[g.question.correct - 1])
-    if (!answer) return m.reply(`اكتب اسم الإجابة فقط. مثال: ${prefix}جاوب باريس`)
+    if (!answer) return m.reply(`اكتب اسم الإجابة فقط. مثال: ${prefix}تحدي_جاوب باريس`)
     if (answer !== correctAnswer) {
       return m.reply(`❌ إجابة خاطئة يا ${cleanName(m)}! حاولوا قبل أن يسبقكم فريق آخر.`)
     }
@@ -220,9 +221,9 @@ let handler = async (m, { args, usedPrefix, command }) => {
       const winner = tied ? null : g.scores.girls > g.scores.boys ? 'girls' : 'boys'
       g.winner = winner
       const ending = tied
-        ? `🤝 انتهت المسابقة بالتعادل!\n\n${scoreText(g)}\n\nيمكنكم عمل جولة كسر تعادل بكتابة ${prefix}سؤال.`
+        ? `🤝 انتهت المسابقة بالتعادل!\n\n${scoreText(g)}\n\nيمكنكم عمل جولة كسر تعادل بكتابة ${prefix}تحدي_سؤال.`
         : `🏆 انتهت المسابقة!\n\n👑 الفريق الفائز: *${teamName(winner)}*\n😈 يحق للفريق الفائز الآن وضع حكم على الفريق الآخر:
-${prefix}حكم [اكتبوا الحكم هنا]`
+${prefix}تحدي_حكم [اكتبوا الحكم هنا]`
       return m.reply(`${earned}\n\n${ending}`)
     }
     newQuestion(g)
@@ -230,19 +231,19 @@ ${prefix}حكم [اكتبوا الحكم هنا]`
   }
 
   if (/^(نتيجة|النتائج|score|scores)$/i.test(action)) {
-    if (!g.started) return m.reply(`التسجيل مستمر ولم يبدأ التحدي بعد. اكتب ${prefix}ابدأ`)
+    if (!g.started) return m.reply(`التسجيل مستمر ولم يبدأ التحدي بعد. اكتب ${prefix}تحدي_ابدأ`)
     const tied = g.scores.girls === g.scores.boys
     const winner = tied ? null : g.scores.girls > g.scores.boys ? 'girls' : 'boys'
     if (g.questionNo < g.maxQuestions && !arg) return m.reply(`📊 النتيجة الحالية بعد ${g.questionNo} جولات:\n\n${scoreText(g)}\n\nباقي ${g.maxQuestions - g.questionNo} جولات.`)
-    if (!winner) return m.reply(`🤝 تعادل!\n\n${scoreText(g)}\n\nاكتب ${prefix}سؤال لجولة كسر التعادل.`)
+    if (!winner) return m.reply(`🤝 تعادل!\n\n${scoreText(g)}\n\nاكتب ${prefix}تحدي_سؤال لجولة كسر التعادل.`)
     g.winner = winner
-    return m.reply(`🏆 *انتهى التحدي!*\n\n${scoreText(g)}\n\n👑 الفائزون: ${teamName(winner)}\n😈 يحق للفائزين الآن كتابة الحكم:\n${prefix}حكم [اكتبوا التحدي على الفريق الخاسر]`)
+    return m.reply(`🏆 *انتهى التحدي!*\n\n${scoreText(g)}\n\n👑 الفائزون: ${teamName(winner)}\n😈 يحق للفائزين الآن كتابة الحكم:\n${prefix}تحدي_حكم [اكتبوا التحدي على الفريق الخاسر]`)
   }
 
   if (/^(حكم|الحكم|verdict)$/i.test(action)) {
-    if (!g.winner) return m.reply(`أعلنوا النتيجة أولًا باستخدام ${prefix}نتيجة نهائي`)
+    if (!g.winner) return m.reply(`أعلنوا النتيجة أولًا باستخدام ${prefix}تحدي_نتيجة نهائي`)
     const verdict = args.slice(0).join(' ').trim()
-    if (!verdict) return m.reply(`مثال: ${prefix}حكم غنوا مقطعًا من أغنية\nأو: ${prefix}حكم أرسلوا صورة مضحكة`)
+    if (!verdict) return m.reply(`مثال: ${prefix}تحدي_حكم غنوا مقطعًا من أغنية\nأو: ${prefix}تحدي_حكم أرسلوا صورة مضحكة`)
     g.verdict = verdict
     const loser = g.winner === 'girls' ? 'boys' : 'girls'
     return m.reply(`📜 *الحكم الرسمي*\n\n👑 ${teamName(g.winner)} يحكمون على ${teamName(loser)}:\n\n🎭 ${verdict}\n\nعلى الفريق الخاسر تنفيذ الحكم بروح رياضية!`)
@@ -253,9 +254,9 @@ ${prefix}حكم [اكتبوا الحكم هنا]`
     return m.reply('🛑 تم إنهاء التحدي وحذف نتيجته.')
   }
 
-  if (/^(مساعدة|help)$/i.test(action)) return m.reply(`🎯 *أوامر تحدي البنات والشباب*\n\n${prefix}تحدي — فتح تحدي جديد\n${prefix}انضم بنت\n${prefix}انضم ولد\n${prefix}ابدأ — بدء الأسئلة\n${prefix}جاوب باريس — اكتب اسم الإجابة فقط\n${prefix}سؤال — السؤال التالي\n${prefix}نتيجة — عرض النقاط\n${prefix}حكم [النص] — حكم الفريق الفائز\n${prefix}قائمة — اللاعبون\n${prefix}انهاء — إنهاء التحدي`)
+  if (/^(مساعدة|help)$/i.test(action)) return m.reply(`🎯 *أوامر تحدي البنات والشباب*\n\n${prefix}تحدي — فتح تحدي جديد\n${prefix}تحدي_انضم بنت\n${prefix}تحدي_انضم ولد\n${prefix}تحدي_ابدأ — بدء الأسئلة\n${prefix}تحدي_جاوب باريس — اكتب اسم الإجابة فقط\n${prefix}تحدي_سؤال — السؤال التالي\n${prefix}تحدي_نتيجة — عرض النقاط\n${prefix}تحدي_حكم [النص] — حكم الفريق الفائز\n${prefix}تحدي_قائمة — اللاعبون\n${prefix}تحدي_انهاء — إنهاء التحدي`)
 
-  return m.reply(`أمر غير معروف. اكتب ${prefix}مساعدة لرؤية أوامر التحدي.`)
+  return m.reply(`أمر غير معروف. اكتب ${prefix}مساعدة_التحدي لرؤية أوامر التحدي.`)
 }
 
 // استقبال الإجابات المباشرة بدون أمر: يكتب اللاعب "باريس" فقط.
@@ -288,8 +289,8 @@ handler.all = async (m) => {
   return m.reply(`${earned}\n\n${questionText(g, '.')}`)
 }
 
-handler.help = ['تحدي', 'انضم بنت', 'انضم ولد', 'ابدأ', 'جاوب 1', 'نتيجة', 'حكم']
+handler.help = ['تحدي', 'تحدي_انضم بنت', 'تحدي_انضم ولد', 'تحدي_ابدأ', 'تحدي_جاوب 1', 'تحدي_نتيجة', 'تحدي_حكم']
 handler.tags = ['games']
-handler.command = /^(تحدي|تحدى|challenge|انضم|join|قائمة|اللاعبين|players|ابدأ|start|سؤال|السؤال|next|التالي|جاوب|اجابة|إجابة|answer|نتيجة|النتائج|score|scores|حكم|الحكم|verdict|انهاء|إلغاء|الغاء|stop|مساعدة|help)$/i
+handler.command = /^(تحدي|تحدى|challenge|تحدي_انضم|تحدي_قائمة|تحدي_اللاعبين|تحدي_ابدأ|تحدي_سؤال|تحدي_التالي|تحدي_جاوب|تحدي_اجابة|تحدي_إجابة|تحدي_نتيجة|تحدي_حكم|تحدي_الحكم|تحدي_انهاء|تحدي_إلغاء|تحدي_الغاء|تحدي_stop|مساعدة_التحدي)$/i
 
 export default handler

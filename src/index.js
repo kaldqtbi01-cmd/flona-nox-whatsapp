@@ -154,7 +154,13 @@ const pluginFilter = (filename) => /\.js$/.test(filename)
 global.plugins = {}
 
 async function filesInit() {
-    const files = readdirSync(pluginFolder).filter(pluginFilter)
+    const files = readdirSync(pluginFolder).filter(pluginFilter).sort((a, b) => {
+        // القائمة الرئيسية يجب أن تفوز بالأسماء العامة مثل menu/help،
+        // قبل إضافات الألعاب التي تستخدم help كمساعدة داخلية.
+        if (a === "main-menu.js") return -1
+        if (b === "main-menu.js") return 1
+        return a.localeCompare(b, "ar")
+    })
     await Promise.allSettled(files.map(async (filename) => {
         try {
             const file = global.__filename(join(pluginFolder, filename))

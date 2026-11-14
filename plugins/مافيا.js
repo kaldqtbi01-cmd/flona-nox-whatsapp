@@ -36,20 +36,20 @@ function winnerText(result) {
 function help(prefix) {
   return `╭──「 🕵️ المافيا والمدينة 」──╮
 │ ${prefix}مافيا — فتح لعبة جديدة
-│ ${prefix}انضم — الانضمام للعبة
-│ ${prefix}ابدأ — توزيع الأدوار
+│ ${prefix}مافيا_انضم — الانضمام للعبة
+│ ${prefix}مافيا_ابدأ — توزيع الأدوار
 │ ${prefix}قائمة — عرض الأحياء
-│ ${prefix}حالة — حالة اللعبة
+│ ${prefix}مافيا_حالة — حالة اللعبة
 │
 │ أثناء الليل:
-│ ${prefix}قتل @شخص — للمافيا
-│ ${prefix}حماية @شخص — للطبيب
-│ ${prefix}تحقيق @شخص — للمحقق
-│ ${prefix}نهار — إنهاء الليل
+│ ${prefix}مافيا_قتل @شخص — للمافيا
+│ ${prefix}مافيا_حماية @شخص — للطبيب
+│ ${prefix}مافيا_تحقيق @شخص — للمحقق
+│ ${prefix}مافيا_نهار — إنهاء الليل
 │
 │ أثناء النهار:
-│ ${prefix}صوت @شخص — التصويت لطرده
-│ ${prefix}حسم — حساب الأصوات
+│ ${prefix}مافيا_صوت @شخص — التصويت لطرده
+│ ${prefix}مافيا_حسم — حساب الأصوات
 │ ${prefix}حكم — عرض الأدوار بعد النهاية
 │ ${prefix}انهاء — إلغاء اللعبة
 ╰──────────────────╯`
@@ -64,7 +64,8 @@ function endGame(g, result) {
 
 let handler = async (m, { args, usedPrefix, command, conn }) => {
   const prefix = usedPrefix || '.'
-  const action = String(command || '').toLowerCase()
+  const rawAction = String(command || '').toLowerCase()
+  const action = rawAction === 'مساعدة_المافيا' ? 'ساعدني' : rawAction.replace(/^مافيا[_-]/, '')
   const sender = m.sender
   const chat = m.chat
   let g = games.get(chat)
@@ -75,7 +76,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     if (games.has(chat)) return m.reply('⚠️ توجد لعبة مافيا قائمة بالفعل في هذا الجروب.')
     g = { host: sender, phase: 'lobby', round: 0, players: {}, votes: {}, kills: {}, heal: null, inspect: null, ended: false }
     games.set(chat, g)
-    return m.reply(`╭──「 🕵️ المافيا والمدينة 」──╮\n│ تم فتح التسجيل!\n│ أقل عدد: 5 لاعبين\n╰──────────────────╯\n\nللانضمام اكتب:\n*${prefix}انضم*\n\nبعد اكتمال العدد يكتب صاحب اللعبة:\n*${prefix}ابدأ*\n\nللمساعدة: ${prefix}ساعدني`)
+    return m.reply(`╭──「 🕵️ المافيا والمدينة 」──╮\n│ تم فتح التسجيل!\n│ أقل عدد: 5 لاعبين\n╰──────────────────╯\n\nللانضمام اكتب:\n*${prefix}مافيا_انضم*\n\nبعد اكتمال العدد يكتب صاحب اللعبة:\n*${prefix}مافيا_ابدأ*\n\nللمساعدة: ${prefix}مساعدة_المافيا`)
   }
 
   if (!g) return m.reply(`لا توجد لعبة مافيا. اكتب ${prefix}مافيا لبدء لعبة جديدة.`)
@@ -106,14 +107,14 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     for (const jid of ids) {
       const p = g.players[jid]
       let privateText = `🕵️ *لعبة المافيا والمدينة*\n\nدورك السري: *${roleName(p.role)}*\n\n`
-      if (p.role === 'mafia') privateText += `تعاون مع المافيا سرًا. في الليل استخدم:\n${prefix}قتل @الشخص\n`
-      if (p.role === 'doctor') privateText += `في كل ليلة احمِ لاعبًا من القتل:\n${prefix}حماية @الشخص\n`
-      if (p.role === 'detective') privateText += `في كل ليلة افحص لاعبًا:\n${prefix}تحقيق @الشخص\n`
+      if (p.role === 'mafia') privateText += `تعاون مع المافيا سرًا. في الليل استخدم:\n${prefix}مافيا_قتل @الشخص\n`
+      if (p.role === 'doctor') privateText += `في كل ليلة احمِ لاعبًا من القتل:\n${prefix}مافيا_حماية @الشخص\n`
+      if (p.role === 'detective') privateText += `في كل ليلة افحص لاعبًا:\n${prefix}مافيا_تحقيق @الشخص\n`
       if (p.role === 'citizen') privateText += 'راقب الكلام وصوّت لطرد المافيا في النهار.\n'
       privateText += `\nاللعبة في الجروب: ${chat}`
       try { await conn.sendMessage(jid, { text: privateText }) } catch {}
     }
-    return m.reply(`🌙 *بدأت اللعبة — الليل الأول*\n\nتم إرسال الأدوار في الخاص لكل لاعب.\nالمافيا تختار ضحية، والطبيب يحمي، والمحقق يحقق.\n\nبعد انتهاء الجميع اكتب: *${prefix}نهار*`)
+    return m.reply(`🌙 *بدأت اللعبة — الليل الأول*\n\nتم إرسال الأدوار في الخاص لكل لاعب.\nالمافيا تختار ضحية، والطبيب يحمي، والمحقق يحقق.\n\nبعد انتهاء الجميع اكتب: *${prefix}مافيا_نهار*`)
   }
 
   if (/^(قتل|kill|nightkill)$/i.test(action)) {
@@ -121,7 +122,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     const p = g.players[sender]
     if (!p || !p.alive || p.role !== 'mafia') return m.reply('❌ هذا الأمر للمافيا فقط.')
     const target = mentioned(m)
-    if (!target || !g.players[target] || !g.players[target].alive) return m.reply(`اذكر لاعبًا حيًا: ${prefix}قتل @الشخص`)
+    if (!target || !g.players[target] || !g.players[target].alive) return m.reply(`اذكر لاعبًا حيًا: ${prefix}مافيا_قتل @الشخص`)
     if (g.players[target].role === 'mafia') return m.reply('لا يمكنك قتل زميلك في المافيا.')
     g.kills[sender] = target
     return m.reply(`🔪 تم تسجيل اختيارك السري ضد ${targetText(m)}.`)
@@ -131,7 +132,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     if (g.phase !== 'night') return m.reply('الآن نهار.')
     const p = g.players[sender], target = mentioned(m)
     if (!p || !p.alive || p.role !== 'doctor') return m.reply('❌ هذا الأمر للطبيب فقط.')
-    if (!target || !g.players[target] || !g.players[target].alive) return m.reply(`اذكر لاعبًا حيًا: ${prefix}حماية @الشخص`)
+    if (!target || !g.players[target] || !g.players[target].alive) return m.reply(`اذكر لاعبًا حيًا: ${prefix}مافيا_حماية @الشخص`)
     g.heal = target
     return m.reply(`🩺 سجلت حماية اللاعب ${targetText(m)} سرًا.`)
   }
@@ -140,7 +141,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     if (g.phase !== 'night') return m.reply('الآن نهار.')
     const p = g.players[sender], target = mentioned(m)
     if (!p || !p.alive || p.role !== 'detective') return m.reply('❌ هذا الأمر للمحقق فقط.')
-    if (!target || !g.players[target] || !g.players[target].alive) return m.reply(`اذكر لاعبًا حيًا: ${prefix}تحقيق @الشخص`)
+    if (!target || !g.players[target] || !g.players[target].alive) return m.reply(`اذكر لاعبًا حيًا: ${prefix}مافيا_تحقيق @الشخص`)
     const isMafia = g.players[target].role === 'mafia'
     try { await conn.sendMessage(sender, { text: `🕵️ نتيجة التحقيق: ${tag(target)} ${isMafia ? 'مافيا 🔪' : 'ليس مافيا ✅'}` }) } catch {}
     return m.reply('🕵️ تم إرسال نتيجة التحقيق لك في الخاص.')
@@ -159,14 +160,14 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     g.phase = 'day'; g.votes = {}; g.kills = {}; g.heal = null
     const result = winner(g)
     if (result) { games.delete(chat); return m.reply(announcement + '\n' + endGame(g, result)) }
-    return m.reply(announcement + `\nالأحياء:\n${aliveNames(g)}\n\nناقشوا ثم صوّتوا باستخدام:\n${prefix}صوت @الشخص\n\nبعد اكتمال التصويت اكتبوا: ${prefix}حسم`)
+    return m.reply(announcement + `\nالأحياء:\n${aliveNames(g)}\n\nناقشوا ثم صوّتوا باستخدام:\n${prefix}مافيا_صوت @الشخص\n\nبعد اكتمال التصويت اكتبوا: ${prefix}مافيا_حسم`)
   }
 
   if (/^(صوت|تصويت|vote)$/i.test(action)) {
     if (g.phase !== 'day') return m.reply('التصويت متاح في النهار فقط.')
     const p = g.players[sender], target = mentioned(m)
     if (!p || !p.alive) return m.reply('❌ اللاعبون الأحياء فقط يصوتون.')
-    if (!target || !g.players[target] || !g.players[target].alive || target === sender) return m.reply(`اذكر لاعبًا حيًا غير نفسك: ${prefix}صوت @الشخص`)
+    if (!target || !g.players[target] || !g.players[target].alive || target === sender) return m.reply(`اذكر لاعبًا حيًا غير نفسك: ${prefix}مافيا_صوت @الشخص`)
     g.votes[sender] = target
     return m.reply(`🗳️ تم تسجيل صوتك.`)
   }
@@ -185,7 +186,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     const result = winner(g)
     if (result) { games.delete(chat); return m.reply(kicked + '\n\n' + endGame(g, result)) }
     g.phase = 'night'; g.round++; g.votes = {}
-    return m.reply(kicked + `\n\n🌙 بدأ الليل ${g.round}.\nأصحاب الأدوار ينفذون أوامرهم، ثم اكتب ${prefix}نهار`)
+    return m.reply(kicked + `\n\n🌙 بدأ الليل ${g.round}.\nأصحاب الأدوار ينفذون أوامرهم، ثم اكتب ${prefix}مافيا_نهار`)
   }
 
   if (/^(حالة|status|نتيجة)$/i.test(action)) return m.reply(status(g))
@@ -198,11 +199,11 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     games.delete(chat); return m.reply('🛑 تم إلغاء لعبة المافيا.')
   }
   if (/^(ساعدني|help)$/i.test(action)) return m.reply(help(prefix))
-  return m.reply(`أمر غير معروف. اكتب ${prefix}ساعدني لرؤية أوامر المافيا.`)
+  return m.reply(`أمر غير معروف. اكتب ${prefix}مساعدة_المافيا لرؤية أوامر المافيا.`)
 }
 
-handler.help = ['مافيا', 'انضم', 'ابدأ', 'قتل @', 'حماية @', 'تحقيق @', 'نهار', 'صوت @', 'حسم']
+handler.help = ['مافيا', 'مافيا_انضم', 'مافيا_ابدأ', 'مافيا_قتل @', 'مافيا_حماية @', 'مافيا_تحقيق @', 'مافيا_نهار', 'مافيا_تصويت @', 'مافيا_حسم']
 handler.tags = ['games']
-handler.command = /^(مافيا|maf|mafia|انضم|join|قائمة|players|اللاعبين|ابدأ|start|قتل|kill|nightkill|حماية|heal|doctor|تحقيق|كشف|inspect|نهار|day|endnight|صوت|تصويت|vote|حسم|count|احسم|حالة|status|نتيجة|حكم|roles|الأدوار|انهاء|إلغاء|الغاء|stop|مساعدة|help)$/i
+handler.command = /^(مافيا|maf|mafia|مافيا_انضم|مافيا_قائمة|مافيا_اللاعبين|مافيا_ابدأ|مافيا_قتل|مافيا_حماية|مافيا_تحقيق|مافيا_كشف|مافيا_نهار|مافيا_صوت|مافيا_تصويت|مافيا_حسم|مافيا_احسم|مافيا_حالة|مافيا_نتيجة|مافيا_حكم|مافيا_انهاء|مافيا_إلغاء|مافيا_الغاء|مافيا_stop|مساعدة_المافيا)$/i
 
 export default handler
