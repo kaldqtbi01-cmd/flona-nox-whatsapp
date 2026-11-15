@@ -49,7 +49,48 @@ function detectTag(code) {
 }
 
 // ── جلسات الانتظار (ينتظر رد المستخدم لاختيار القسم) ─────────────────────
-const waitingSections = new Map()  // sender → { fileName, code, pluginsDir }
+const waitingSections = new Map()  // sender+chat → { fileName, code, pluginsDir, createdAt }
+const SESSION_TIMEOUT_MS = 10 * 60 * 1000
+const sessionKey = (sender, chat) => `${sender}:${chat}`
+
+function normalizeDigits(value) {
+    return String(value || "")
+        .trim()
+        .replace(/[\uFE0F\u20E3]/g, "")
+        .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06f0))
+}
+
+async function saveSectionChoice(m, conn, key, session, choice) {
+    const secKeys = Object.keys(SECTIONS)
+    if (choice < 1 || choice > secKeys.length) {
+        await m.reply("❌ رقم غير صحيح — اختار رقم من القائمة")
+        return
+    }
+
+    const chosenTag = secKeys[choice - 1]
+    const savePath = path.join(session.pluginsDir, session.fileName)
+    const isEdit = fs.existsSync(savePath)
+
+    try {
+        if (!session.isMove) fs.writeFileSync(savePath, session.code, "utf-8")
+
+        const tags = loadTags()
+        tags[session.fileName] = chosenTag
+        saveTags(tags)
+        waitingSections.delete(key)
+
+        try { await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } }) } catch {}
+        const action = session.isMove ? "نقل" : isEdit ? "تعديل" : "إضافة"
+        await m.reply(
+            `✅ تم ${action} البلوقن *${session.fileName}*\n` +
+            `📂 القسم: ${SECTIONS[chosenTag]}`
+        )
+    } catch (error) {
+        console.error("[plugins] Failed to save selected section:", error.message)
+        await m.reply("❌ تعذر حفظ البلوقن؛ راجع صلاحيات مجلد plugins وحاول مجددًا")
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -65,38 +106,6 @@ let handler = async (m, { conn, args, usedPrefix }) => {
 
     const action = (args[0] || "").toLowerCase()
     const tags   = loadTags()
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    //  انتظار اختيار القسم — لو المستخدم بعت رقم
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    if (waitingSections.has(m.sender) && /^[0-9]+$/.test(m.text?.trim())) {
-        const session    = waitingSections.get(m.sender)
-        const secKeys    = Object.keys(SECTIONS)
-        const choice     = parseInt(m.text.trim()) - 1
-
-        if (choice < 0 || choice >= secKeys.length) {
-            return m.reply("❌ رقم غير صحيح — اختار رقم من القائمة")
-        }
-
-        const chosenTag = secKeys[choice]
-
-        // حفظ الملف
-        const savePath = path.join(session.pluginsDir, session.fileName)
-        const isEdit   = fs.existsSync(savePath)
-        fs.writeFileSync(savePath, session.code, "utf-8")
-
-        // حفظ القسم
-        tags[session.fileName] = chosenTag
-        saveTags(tags)
-
-        waitingSections.delete(m.sender)
-
-        await react("✅")
-        return m.reply(
-            `✅ تم ${isEdit ? "تعديل" : "إضافة"} البلوقن *${session.fileName}*\n` +
-            `📂 القسم: ${SECTIONS[chosenTag]}`
-        )
-    }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     //  لست — عرض كل البلوقنات مع أقسامها
@@ -179,11 +188,12 @@ let handler = async (m, { conn, args, usedPrefix }) => {
         lines.push(`\nأرسل الرقم للتأكيد`)
 
         // حفظ جلسة الانتظار
-        waitingSections.set(m.sender, {
+        waitingSections.set(sessionKey(m.sender, m.chat), {
             fileName,
             code:       fs.readFileSync(path.join(pluginsDir, fileName), "utf-8"),
             pluginsDir,
             isMove:     true,
+            createdAt:  Date.now(),
         })
 
         await react("📂")
@@ -303,7 +313,12 @@ let handler = async (m, { conn, args, usedPrefix }) => {
         secKeys.forEach((k, i) => lines.push(`${i + 1}. ${SECTIONS[k]}`))
         lines.push(`\nأرسل الرقم للتأكيد`)
 
-        waitingSections.set(m.sender, { fileName, code, pluginsDir })
+        waitingSections.set(sessionKey(m.sender, m.chat), {
+            fileName,
+            code,
+            pluginsDir,
+            createdAt: Date.now(),
+        })
 
         await react("❓")
         return m.reply(lines.join("\n"))
@@ -333,6 +348,33 @@ let handler = async (m, { conn, args, usedPrefix }) => {
         `│\n` +
         `╰── 𝐂𝐇𝐄𝐎𝐍 𝐁𝐎𝐓 ──╯`
     )
+}
+
+handler.before = async function (m, { conn, isOwner, isROwner }) {
+    const key = sessionKey(m.sender, m.chat)
+    const session = waitingSections.get(key)
+    if (!session || (!isOwner && !isROwner)) return false
+
+    if (Date.now() - session.createdAt > SESSION_TIMEOUT_MS) {
+        waitingSections.delete(key)
+        await m.reply("⌛ انتهت مهلة اختيار القسم؛ أعد أمر إضافة البلوقن")
+        return true
+    }
+
+    const text = m.text?.trim()
+    if (!text) return false
+
+    if (/^(إلغاء|الغاء|cancel)$/i.test(text)) {
+        waitingSections.delete(key)
+        await m.reply("تم إلغاء اختيار قسم البلوقن")
+        return true
+    }
+
+    const normalized = normalizeDigits(text)
+    if (!/^\d+$/.test(normalized)) return false
+
+    await saveSectionChoice(m, conn, key, session, Number(normalized))
+    return true
 }
 
 handler.help    = ["بلوقن لست", "بلوقن عرض", "بلوقن اضف", "بلوقن نقل", "بلوقن حذف"]
