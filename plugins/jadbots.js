@@ -431,7 +431,7 @@ async function joinChannels(conn) {
 // ═══════════════════════════════════════
 // فحص وإعادة تشغيل البوتات الفرعية كل 30 دقيقة
 // ═══════════════════════════════════════
-async function checkSubBots() {
+export async function checkSubBots() {
     const subBotDir = path.resolve('./jadibts')
     if (!fs.existsSync(subBotDir)) return
 

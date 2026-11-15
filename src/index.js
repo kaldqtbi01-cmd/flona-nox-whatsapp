@@ -286,7 +286,17 @@ whatsapp.on("open", async (sock) => {
         channelsJoined = true
         await joinChannels(sock).catch(() => {})
     }
-    console.log(cheonPurple("𝑻𝒉𝒆 𝒃𝒐𝒕 𝒊𝒔 𝒕𝒖𝒓𝒏𝒆𝒅 𝒐𝒏"))
+    console.log(cheonPurple("𝑻𝒉𝒆 𝒃𝒐𝒕 𝒊𝒔 𝒕𝒖𝒓𝐧𝐞𝐝 𝐨𝐧"))
+    // إعادة تشغيل جلسات .تنصيب المحفوظة بعد إقلاع البوت الأساسي.
+    // المجلدات لا تُحذف؛ يتم فقط إعادة فتح الاتصالات الموجودة على القرص.
+    setTimeout(async () => {
+        try {
+            const { checkSubBots } = await import("../plugins/jadbots.js")
+            await checkSubBots()
+        } catch (e) {
+            console.error("❌ تعذر إعادة تشغيل جلسات البوتات الفرعية:", e.message)
+        }
+    }, 5000)
 })
 
 /**
