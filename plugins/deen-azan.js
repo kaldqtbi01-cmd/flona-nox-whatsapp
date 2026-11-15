@@ -76,8 +76,20 @@ function getGroupIds(conn) {
     .map(([id]) => id)
 }
 
+function getActiveConnections() {
+  const candidates = [global.conn, ...(Array.isArray(global.conns) ? global.conns : [])]
+  return [...new Set(candidates)].filter(conn => {
+    if (!conn?.user || typeof conn.sendMessage !== 'function') return false
+    if (conn === global.conn && global.stopped && global.stopped !== 'open') return false
+    if (conn.ws?.isOpen === false) return false
+    if (typeof conn.ws?.readyState === 'number' && conn.ws.readyState !== 1) return false
+    return true
+  })
+}
+
 async function sendPrayerReminder(conn, date, prayerName) {
   for (const groupId of getGroupIds(conn)) {
+    // منع التكرار إذا كان البوت الرئيسي والفرعي موجودين في المجموعة نفسها.
     const sentKey = `${date}:${prayerName}:${groupId}`
     if (state.sent.has(sentKey)) continue
 
@@ -111,8 +123,8 @@ async function sendPrayerReminder(conn, date, prayerName) {
 
 async function runScheduler() {
   if (state.running) return
-  const conn = global.conn
-  if (!conn || (global.stopped && global.stopped !== 'open')) return
+  const connections = getActiveConnections()
+  if (!connections.length) return
 
   state.running = true
   try {
@@ -124,7 +136,8 @@ async function runScheduler() {
     const currentTime = now.format('HH:mm')
 
     for (const [prayerName, apiKey] of PRAYERS) {
-      if (currentTime === normalizeTime(timings[apiKey])) {
+      if (currentTime !== normalizeTime(timings[apiKey])) continue
+      for (const conn of connections) {
         await sendPrayerReminder(conn, date, prayerName)
       }
     }
