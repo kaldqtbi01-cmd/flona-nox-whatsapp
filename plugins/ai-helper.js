@@ -2,7 +2,7 @@ import fetch from 'node-fetch'
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const TEXT_MODEL = 'llama-3.3-70b-versatile'
+const TEXT_MODEL = process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-120b'
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 function getKey() {
@@ -22,7 +22,7 @@ export async function askGroq(messages, model = TEXT_MODEL, maxTokens = 1024) {
     body: JSON.stringify({
       model,
       messages,
-      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
       temperature: 0.7
     })
   })
@@ -40,7 +40,7 @@ export async function askOverChat(prompt, system = '', requestedModel = '') {
     ...(system ? [{ role: 'system', content: system }] : []),
     { role: 'user', content: String(prompt ?? '') }
   ]
-  return askGroq(messages, TEXT_MODEL, 2048)
+  return askGroq(messages, requestedModel || TEXT_MODEL, 2048)
 }
 
 export async function downloadMedia(m) {
