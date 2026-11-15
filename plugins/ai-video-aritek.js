@@ -137,7 +137,7 @@ function userFacingError(error) {
 const handler = async (m, { conn, text }) => {
   const prompt = String(text || '').trim()
   if (!prompt) {
-    return m.reply('🎬 أرسل وصف الفيديو بعد الأمر.\nمثال: .توليد_فيديو قط يركض في حديقة بأسلوب سينمائي')
+    return m.reply('🎬 أرسل وصف الفيديو بعد الأمر.\nمثال: .فيديوز قط يركض في حديقة بأسلوب سينمائي')
   }
   if (prompt.length > 600) return m.reply('الوصف طويل؛ اختصره إلى 600 حرف أو أقل.')
 
@@ -177,8 +177,8 @@ const handler = async (m, { conn, text }) => {
   }
 }
 
-handler.command = /^(توليد_فيديو|توليد-فيديو|text2video)$/i
-handler.help = ['توليد_فيديو <وصف>']
+handler.command = /^(فيديوز|توليد_فيديو|توليد-فيديو|text2video)$/i
+handler.help = ['فيديوز <وصف>', 'توليد_فيديو <وصف>']
 handler.tags = ['ai']
 handler.group = true
 handler.admin = true
