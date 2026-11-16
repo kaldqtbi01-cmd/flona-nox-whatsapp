@@ -1,25 +1,36 @@
-let handler = async (m, { conn, usedPrefix = '.', command, text }) => {
+let handler = async (m, { text, command, settings, isOwner }) => {
+  if (!isOwner) return m.reply('❌ هذا الإعداد متاح للمالك فقط.')
+
   const value = String(text || '').trim().toLowerCase()
-  const prefix = usedPrefix || '.'
-  let reply
+  const on = ['on', 'تشغيل', 'تفعيل'].includes(value)
+  const off = ['off', 'إيقاف', 'ايقاف', 'تعطيل'].includes(value)
 
-  if (['off', 'إيقاف', 'ايقاف', 'تعطيل'].includes(value)) {
-    reply = '✅ هذا الأمر لا يلتقط أو يحفظ وسائط العرض لمرة واحدة؛ لا يلزم تعطيل إضافي.'
-  } else if (['on', 'تشغيل', 'تفعيل'].includes(value)) {
-    reply = 'ℹ️ لا يمكن لـ FLONA استخراج أو إعادة توجيه محتوى أرسله شخص بخيار العرض لمرة واحدة. اطلب من المرسل إعادة إرسال الوسائط العادية إذا وافق على مشاركتها.'
-  } else {
-    reply = `ℹ️ ميزة استخراج وسائط العرض لمرة واحدة غير متاحة. استخدم ${prefix}${command} on أو ${prefix}${command} off؛ سيشرح الأمر حدود الميزة دون حفظ الوسائط.`
+  if (!on && !off) {
+    const current = settings?.viewOnceAuto !== false && settings?.viewOnceAuto !== 'off'
+    return m.reply(
+      `👁️ حفظ وسائط العرض لمرة واحدة: ${current ? 'مفعّل' : 'متوقف'}\n` +
+      `استخدم .${command} on للتفعيل أو .${command} off للإيقاف.\n` +
+      'عند التفعيل تُرسل الوسائط المستعادة إلى محادثة المالك الخاصة.'
+    )
   }
 
+  settings.viewOnceAuto = on
   try {
-    await conn.sendMessage(m.chat, { text: reply }, { quoted: m })
-  } catch {
-    await conn.sendMessage(m.chat, { text: reply })
+    if (typeof global.db?.write === 'function') await global.db.write()
+  } catch (error) {
+    console.error('[VIEWONCE] تعذر حفظ الإعداد:', error?.message || error)
+    return m.reply('⚠️ تغيّر الإعداد مؤقتًا، لكن تعذر حفظه. حاول مرة أخرى.')
   }
+
+  return m.reply(on
+    ? '✅ تم تفعيل الحفظ التلقائي. ستُرسل وسائط العرض لمرة واحدة إلى محادثة المالك الخاصة.'
+    : '✅ تم إيقاف الحفظ التلقائي لوسائط العرض لمرة واحدة.'
+  )
 }
 
-handler.help = ['مضاد_العرض on/off', 'استخراج_العرض on/off']
-handler.tags = ['info']
+handler.help = ['استخراج_العرض on/off', 'viewonce_تلقائي on/off']
+handler.tags = ['tools']
 handler.command = /^(مضاد_العرض|استخراج_العرض|viewonce_تلقائي)$/i
+handler.owner = true
 
 export default handler
