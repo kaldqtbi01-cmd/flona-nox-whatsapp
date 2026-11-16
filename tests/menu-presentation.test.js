@@ -16,8 +16,9 @@ test('main menu presents the FLONA identity, greeting, status and navigation in 
   assert.match(text, /FLONA Team/)
   assert.match(text, /2ي • 3س • 4د/)
   assert.match(text, /09:15:00 PM/)
-  assert.match(text, /أقسام فلونا  10/)
+  assert.match(text, /\*أقسام فلونا:\* 10/)
   assert.match(text, /اختر وجهتك من الأزرار بالأسفل/)
+  assert.match(text, /\*أهلاً بك يا @12345\*/)
 })
 
 test('category menu formats each command with the active prefix and exact command count', () => {
@@ -29,9 +30,9 @@ test('category menu formats each command with the active prefix and exact comman
 
   assert.match(text, /🎮 𝐅𝐋𝐎𝐍𝐀/)
   assert.match(text, /الألعاب والترفيه/)
-  assert.match(text, /عدد الأوامر  2/)
-  assert.match(text, /\*!تحدي\*/)
-  assert.match(text, /\*!كرة8 <سؤال>\*/)
+  assert.match(text, /\*عدد الأوامر:\* 2/)
+  assert.match(text, /🟢  \*!تحدي\*/)
+  assert.match(text, /🟢  \*!كرة8 <سؤال>\*/)
 })
 
 test('empty category still receives the branded layout and an accurate zero count', () => {
@@ -41,7 +42,7 @@ test('empty category still receives the branded layout and an accurate zero coun
   })
 
   assert.match(text, /قسم فارغ/)
-  assert.match(text, /عدد الأوامر  0/)
+  assert.match(text, /\*عدد الأوامر:\* 0/)
   assert.match(text, /لا توجد أوامر في هذا القسم حالياً/)
 })
 
