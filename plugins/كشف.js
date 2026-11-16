@@ -69,8 +69,10 @@ function unwrap(message) {
   return current || {}
 }
 
-function findMedia(m) {
-  const stored = m.quoted?.id ? store.loadMessage(m.quoted.chat, m.quoted.id) : null
+function findMedia(conn, m) {
+  const stored = m.quoted?.id
+    ? (conn.loadMessage?.(m.quoted.id) || store.loadMessage(m.quoted.chat, m.quoted.id))
+    : null
   const raw = stored?.message || m.msg?.contextInfo?.quotedMessage || m.quoted?.vM?.message || {}
   const wrappedViewOnce = hasViewOnceWrapper(raw)
   const storedInner = unwrap(raw)
@@ -109,6 +111,14 @@ async function readStream(message, type) {
 async function downloadMedia(conn, m, media) {
   const errors = []
   const methods = [
+    ['original-message', async () => {
+      const original = media.stored || conn.loadMessage?.(m.quoted?.id) || m.quoted?.vM || m.quoted?.fakeObj
+      if (!original?.message) throw new Error('الرسالة الأصلية الكاملة غير متاحة')
+      return downloadMediaMessage(original, 'buffer', {}, {
+        logger: { info() {}, error() {}, warn() {}, debug() {} },
+        reuploadRequest: conn.updateMediaMessage?.bind(conn),
+      })
+    }],
     ['quoted.download', () => m.quoted?.download?.()],
     ['downloadM', () => conn.downloadM?.(media.message, media.type)],
     ['stream', () => readStream(media.message, media.type)],
@@ -155,7 +165,7 @@ const handler = async (m, { conn, isOwner, isROwner }) => {
     return m.reply('❌ رد على صورة أو فيديو ViewOnce، ثم أرسل .فضح')
   }
 
-  const media = findMedia(m)
+  const media = findMedia(conn, m)
   if (!media) {
     await react('❌')
     return m.reply('❌ لم أتعرف على الرسالة كوسائط ViewOnce. رد مباشرة على صورة أو فيديو أُرسل للعرض مرة واحدة.')
