@@ -1,6 +1,7 @@
 /*
- * 🪻 FLONA BOT — كشف الوسائط ذات العرض لمرة واحدة
- * يدعم viewOnceMessage و V2 و V2Extension و ephemeral.
+ * FLONA BOT — استخراج وسائط View Once.
+ * تكييف منطق Atlas للتعرف على الأغلفة والوسائط المفكوكة، مع إبقاء
+ * حماية المالك/المطور ومسارات التنزيل المتوافقة مع FLONA.
  */
 
 import {
@@ -29,64 +30,68 @@ function timeout(task, ms = 15_000) {
   ])
 }
 
-function quotedRaw(m) {
-  const stored = m.quoted?.id ? store.loadMessage(m.quoted.chat, m.quoted.id) : null
-  return stored?.message || m.msg?.contextInfo?.quotedMessage || m.quoted?.vM?.message || {}
+function hasViewOnceWrapper(message) {
+  let current = message || {}
+  for (let depth = 0; depth < 8 && current; depth++) {
+    const wrapper = WRAPPERS.find(name => current[name]?.message)
+    if (wrapper) return true
+    if (current.ephemeralMessage?.message) {
+      current = current.ephemeralMessage.message
+      continue
+    }
+    if (current.documentWithCaptionMessage?.message) {
+      current = current.documentWithCaptionMessage.message
+      continue
+    }
+    break
+  }
+  return false
 }
 
 function unwrap(message) {
   let current = message || {}
-  let changed = true
-  while (changed && current) {
-    changed = false
-    for (const name of WRAPPERS) {
-      if (current[name]?.message) {
-        current = current[name].message
-        changed = true
-        break
-      }
+  for (let depth = 0; depth < 8 && current; depth++) {
+    const wrapper = WRAPPERS.find(name => current[name]?.message)
+    if (wrapper) {
+      current = current[wrapper].message
+      continue
     }
-    if (!changed && current.ephemeralMessage?.message) {
+    if (current.ephemeralMessage?.message) {
       current = current.ephemeralMessage.message
-      changed = true
+      continue
     }
-    if (!changed && current.documentWithCaptionMessage?.message) {
+    if (current.documentWithCaptionMessage?.message) {
       current = current.documentWithCaptionMessage.message
-      changed = true
+      continue
     }
+    break
   }
   return current || {}
 }
 
 function findMedia(m) {
   const stored = m.quoted?.id ? store.loadMessage(m.quoted.chat, m.quoted.id) : null
-  // الأولوية للرسالة الأصلية؛ نسخة m.quoted قد تكون منزوعة mediaKey أو directPath.
-  const storedInner = unwrap(stored?.message)
-  if (stored) {
-    for (const [key, type] of MEDIA) {
-      if (storedInner[key]) return { key, type, message: { ...storedInner[key] }, stored }
-    }
-  }
+  const raw = stored?.message || m.msg?.contextInfo?.quotedMessage || m.quoted?.vM?.message || {}
+  const wrappedViewOnce = hasViewOnceWrapper(raw)
+  const storedInner = unwrap(raw)
 
-  // هذا هو المسار الموثوق في simple.js: يفك ViewOnce ويحتفظ بمفتاح الوسائط.
+  // simple.js قد يفك الغلاف تلقائيًا؛ عندها يجب أن تبقى علامة viewOnce موجودة.
   const prepared = m.quoted?.mediaMessage
-  if (prepared) {
+  const sources = [
+    storedInner,
+    prepared,
+    m.quoted,
+  ]
+
+  for (const source of sources) {
+    if (!source) continue
     for (const [key, type] of MEDIA) {
-      if (prepared[key]) return { key, type, message: { ...prepared[key] }, prepared: true, stored }
+      const value = source[key]
+      if (!value) continue
+      // لا نعامل صورة/فيديو عاديًا على أنه ViewOnce لمجرد الرد عليه.
+      if (!wrappedViewOnce && value.viewOnce !== true) continue
+      return { key, type, message: { ...value }, stored }
     }
-  }
-
-  const inner = unwrap(quotedRaw(m))
-  for (const [key, type] of MEDIA) {
-    if (inner[key]) {
-      return { key, type, message: { ...inner[key] }, stored }
-    }
-  }
-
-  // بعض نسخ simple.js تفك الغلاف داخل m.quoted مباشرة.
-  for (const [key, type] of MEDIA) {
-    const value = m.quoted?.[key]
-    if (value) return { key, type, message: { ...value }, stored }
   }
   return null
 }
@@ -103,7 +108,6 @@ async function readStream(message, type) {
 
 async function downloadMedia(conn, m, media) {
   const errors = []
-
   const methods = [
     ['quoted.download', () => m.quoted?.download?.()],
     ['downloadM', () => conn.downloadM?.(media.message, media.type)],
@@ -134,7 +138,6 @@ async function downloadMedia(conn, m, media) {
       console.warn(`[VIEWONCE] ${name} failed: ${error?.message || error}`)
     }
   }
-
   throw new Error(errors.join(' | '))
 }
 
@@ -143,25 +146,30 @@ const handler = async (m, { conn, isOwner, isROwner }) => {
     try { await conn.sendMessage(m.chat, { react: { text, key: m.key } }) } catch {}
   }
 
+  // لا ننقل غياب حاجز الصلاحيات من إضافة Atlas إلى FLONA.
   if (!isOwner && !isROwner)
-    return m.reply('❌ أمر فضح الوسائط متاح للمطورين فقط.')
+    return m.reply('❌ أمر استخراج وسائط العرض لمرة واحدة متاح للمالك/المطور فقط.')
 
   if (!m.quoted) {
     await react('❌')
-    return m.reply('❌ اعمل رد على صورة أو فيديو ViewOnce أولًا، ثم أرسل .فضح')
+    return m.reply('❌ رد على صورة أو فيديو ViewOnce، ثم أرسل .فضح')
   }
 
   const media = findMedia(m)
   if (!media) {
     await react('❌')
-    return m.reply('❌ لم أتعرف على الرسالة كوسائط ViewOnce. أرسل ViewOnce جديدة واعمل ردًا عليها مباشرة.')
+    return m.reply('❌ لم أتعرف على الرسالة كوسائط ViewOnce. رد مباشرة على صورة أو فيديو أُرسل للعرض مرة واحدة.')
   }
 
   await react('⏳')
-
   try {
     const buffer = await downloadMedia(conn, m, media)
-    const caption = '🔓 تم استخراج الوسائط\n> 🪻 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』'
+    const originalCaption = media.message.caption?.trim()
+    const caption = [
+      '👁️ تم استعادة وسائط العرض لمرة واحدة',
+      originalCaption,
+      '> 🪻 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』',
+    ].filter(Boolean).join('\n\n')
 
     if (media.type === 'image') {
       await conn.sendMessage(m.chat, { image: buffer, caption }, { quoted: m })
@@ -174,7 +182,7 @@ const handler = async (m, { conn, isOwner, isROwner }) => {
   } catch (error) {
     console.error('[VIEWONCE FINAL]', error)
     await react('❌')
-    return m.reply('❌ تعذر تنزيل الوسائط. أرسل ViewOnce جديدة، واعمل ردًا عليها فورًا، ثم أرسل .فضح مرة واحدة.')
+    return m.reply('❌ تعذر تنزيل الوسائط. أرسل ViewOnce جديدة، ورد عليها فورًا ثم أرسل الأمر مرة واحدة.')
   }
 }
 
