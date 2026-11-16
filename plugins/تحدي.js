@@ -1,3 +1,5 @@
+import { awardGamePoint } from '../lib/game-leaderboard.js'
+
 // 🎯 تحدي البنات والشباب — لعبة جماعية للجروبات
 // تعمل مباشرة داخل واتساب وبدون AIRich أو HTML.
 
@@ -215,6 +217,7 @@ let handler = async (m, { args, usedPrefix, command }) => {
       return m.reply(`❌ إجابة خاطئة يا ${cleanName(m)}! حاولوا قبل أن يسبقكم فريق آخر.`)
     }
     g.answered = true; g.scores[player.team]++; player.points++
+    try { awardGamePoint(global.db, chat, sender, 1) } catch (error) { console.error('[game leaderboard]', error?.message || error) }
     const earned = `✅ إجابة صحيحة! الفائز: *${cleanName(m)}* من ${teamName(player.team)}\n🏆 +1 نقطة لـ ${teamName(player.team)}\n\n${scoreText(g)}`
     if (g.questionNo >= g.maxQuestions) {
       const tied = g.scores.girls === g.scores.boys
@@ -275,6 +278,7 @@ handler.all = async (m) => {
   g.answered = true
   g.scores[player.team]++
   player.points++
+  try { awardGamePoint(global.db, m.chat, m.sender, 1) } catch (error) { console.error('[game leaderboard]', error?.message || error) }
   const earned = `✅ إجابة صحيحة! الفائز: *${cleanName(m)}* من ${teamName(player.team)}\n🏆 +1 نقطة لـ ${teamName(player.team)}\n\n${scoreText(g)}`
   if (g.questionNo >= g.maxQuestions) {
     const tied = g.scores.girls === g.scores.boys

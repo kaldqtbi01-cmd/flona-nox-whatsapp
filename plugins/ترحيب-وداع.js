@@ -44,6 +44,8 @@ function wasProcessed(key) {
 handler.before = async function (m, { conn, participants, groupMetadata }) {
     try {
         if (!m?.isGroup) return true
+        const chatSettings = global.db?.data?.chats?.[m.chat] || {}
+        if (chatSettings.memberGreetingEnabled === false) return true
 
         if (m.messageStubType !== 27 && m.messageStubType !== 28) {
             return true
@@ -105,8 +107,12 @@ handler.before = async function (m, { conn, participants, groupMetadata }) {
                 : `@${target.split('@')[0]}`
 
         if (m.messageStubType === 27) {
-
-            const text = `╭━━━━━━〔 ⭐ 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 〕━━━━━━╮
+            const text = chatSettings.sWelcome
+                ? String(chatSettings.sWelcome)
+                    .replace(/@user|\{user\}/g, mention)
+                    .replace(/\{group\}|@subject/g, groupName)
+                    .replace(/\{count\}/g, String(memberCount))
+                : `╭━━━━━━〔 ⭐ 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 〕━━━━━━╮
 ┃
 ┃ 👋 أهلاً وسهلاً بـ ${mention}
 ┃
@@ -147,8 +153,12 @@ handler.before = async function (m, { conn, participants, groupMetadata }) {
         }
 
         if (m.messageStubType === 28) {
-
-            const text = `╭━━━━━━〔 👋 𝐆𝐎𝐎𝐃𝐁𝐘𝐄 〕━━━━━━╮
+            const text = chatSettings.sBye
+                ? String(chatSettings.sBye)
+                    .replace(/@user|\{user\}/g, mention)
+                    .replace(/\{group\}|@subject/g, groupName)
+                    .replace(/\{count\}/g, String(Math.max(memberCount - 1, 0)))
+                : `╭━━━━━━〔 👋 𝐆𝐎𝐎𝐃𝐁𝐘𝐄 〕━━━━━━╮
 ┃
 ┃ 🚪 غادر ${mention} المجموعة.
 ┃

@@ -1,121 +1,57 @@
-/*
-⌁ 𝐍𝐎𝐗 ⌁
-𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂
+const userSpamData = new Map()
+const WINDOW_MS = 5_000
 
-「 𝐂𝐫𝐞𝐝𝐢𝐭𝐬 𝐛𝐲 𝚆𝙸𝙻𝙻𝙸𝙰𝙼 𝚇 𝚂𝙷𝙰𝙽𝙺𝚂 」
-「 لا تحذف الحقوق 🖤 」
-𝐍𝐎𝐗 channel
-https://whatsapp.com/channel/0029VbCeOCi7tkjC9bGs3U0l
-𝙎𝙃𝘼𝙉𝙆𝙎 channel
-https://whatsapp.com/channel/0029VbC5LLx6GcGDXZUmHP0y
- 📜 𝙏𝙝𝙞𝙨 𝙞𝙨 𝙩𝙝𝙚 𝙍𝙀𝙋𝙊 𝙡𝙞𝙣𝙠 𝙬𝙞𝙩𝙝 𝙖𝙡𝙡 𝙩𝙝𝙚 𝙘𝙤𝙙𝙚𝙨:
-⚡ https://github.com/SHANKS-CODE-1/CODE
-*/
-
-const userSpamData = {}
-
-let handler = m => m
-
+const handler = m => m
 handler.before = async function (m, { conn, isAdmin, isBotAdmin, isOwner, isROwner, isPrems }) {
+  if (!m?.isGroup || !m.sender) return
   const chat = global.db?.data?.chats?.[m.chat] || {}
-  const bot = global.db?.data?.settings?.[conn.user.jid] || {}
-
-  if (!bot.antiSpam) return
-  if (m.isGroup && chat.modoadmin) return
-
+  const botSettings = global.db?.data?.settings?.[conn.user?.jid] || {}
+  const enabled = chat.antiSpam === true || (chat.antiSpam !== false && botSettings.antiSpam === true)
+  if (!enabled || chat.modoadmin) return
   if (isOwner || isROwner || isAdmin || isPrems) return
 
-  const sender = m.sender
-  if (!sender) return
+  const now = Date.now()
+  const key = `${m.chat}:${m.sender}`
+  const limit = Math.max(5, Math.min(20, Number(chat.antiSpamLimit) || 8))
+  let state = userSpamData.get(key)
+  if (!state || now - state.windowStart > WINDOW_MS) {
+    state = { windowStart: now, count: 0, strikes: state && now - state.lastStrike < 60_000 ? state.strikes : 0, lastStrike: state?.lastStrike || 0 }
+    userSpamData.set(key, state)
+  }
+  state.count++
+  if (state.count < limit) return
 
-  const currentTime = Date.now()
-  const timeWindow = 5000
-  const messageLimit = 10
+  state.count = 0
+  state.strikes++
+  state.lastStrike = now
+  if (userSpamData.size > 2_000) {
+    for (const [id, value] of userSpamData) if (now - value.windowStart > 60_000) userSpamData.delete(id)
+  }
 
-  if (!userSpamData[sender]) {
-    userSpamData[sender] = {
-      lastMessageTime: currentTime,
-      messageCount: 1,
-      antiBan: 0
-    }
+  if (isBotAdmin && m.key?.id) {
+    await conn.sendMessage(m.chat, {
+      delete: { remoteJid: m.chat, fromMe: false, id: m.key.id, participant: m.key.participant || m.sender }
+    }).catch(() => {})
+  }
 
+  const mention = `@${m.sender.split('@')[0]}`
+  if (state.strikes < 3) {
+    await conn.reply(m.chat, `⚠️ تنبيه ${state.strikes}/3 لـ ${mention}: خفّف الرسائل المتتابعة.`, m, { mentions: [m.sender] }).catch(() => {})
     return
   }
 
-  const userData = userSpamData[sender]
-  const timeDifference = currentTime - userData.lastMessageTime
-
-  if (timeDifference <= timeWindow) {
-    userData.messageCount++
-
-    if (userData.messageCount >= messageLimit) {
-      userData.antiBan++
-
-      if (userData.antiBan === 1) {
-        await conn.reply(
-          m.chat,
-          `⟡ تنبيه أول لـ @${sender.split('@')[0]}\n\nلا ترسل الرسائل بشكل متكرر.`,
-          m,
-          { mentions: [sender] }
-        )
-
-      } else if (userData.antiBan === 2) {
-        await conn.reply(
-          m.chat,
-          `⚡ التنبيه الثاني لـ @${sender.split('@')[0]}\n\nإذا استمر السبام سيتم إخراجك من المجموعة.`,
-          m,
-          { mentions: [sender] }
-        )
-
-      } else if (userData.antiBan >= 3) {
-
-        if (isBotAdmin) {
-          try {
-            await conn.reply(
-              m.chat,
-              `⛔ تم إخراج @${sender.split('@')[0]} بسبب السبام.`,
-              m,
-              { mentions: [sender] }
-            )
-
-            await conn.groupParticipantsUpdate(
-              m.chat,
-              [sender],
-              'remove'
-            )
-
-            delete userSpamData[sender]
-
-          } catch (err) {
-            console.error('حدث خطأ أثناء إخراج المستخدم:', err)
-
-            await conn.reply(
-              m.chat,
-              `⚠️ تعذر إخراج @${sender.split('@')[0]} رغم أن البوت مشرف.`,
-              m,
-              { mentions: [sender] }
-            )
-          }
-
-        } else {
-          await conn.reply(
-            m.chat,
-            `⚠️ لا أستطيع إخراج @${sender.split('@')[0]} لأن البوت ليس مشرفاً.`,
-            m,
-            { mentions: [sender] }
-          )
-        }
-      }
-
-      userData.messageCount = 1
+  if (isBotAdmin) {
+    await conn.reply(m.chat, `⛔ تم إخراج ${mention} بعد تكرار السبام ثلاث مرات.`, m, { mentions: [m.sender] }).catch(() => {})
+    try {
+      await conn.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
+      userSpamData.delete(key)
+    } catch (error) {
+      console.error('[antispam] تعذر إخراج العضو:', error?.message || error)
     }
-
   } else {
-    userData.messageCount = 1
-    userData.antiBan = 0
+    await conn.reply(m.chat, `⚠️ تجاوز ${mention} حد السبام، لكن أحتاج صلاحية مشرف لحذف رسائله أو إخراجه.`, m, { mentions: [m.sender] }).catch(() => {})
+    state.strikes = 0
   }
-
-  userData.lastMessageTime = currentTime
 }
 
 export default handler

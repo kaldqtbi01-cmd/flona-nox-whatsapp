@@ -10,6 +10,7 @@ import { areJidsSameUser, jidNormalizedUser } from "@whiskeysockets/baileys"
 import store from "./lib/store.js"
 import { safeRequest, withRetry, waitForRateLimit } from "./lib/rateLimit.js"
 import { sanitizeError, publicPluginError } from "./lib/safe-error.js"
+import { isTemporarilyMuted } from "./lib/group-moderation.js"
 
 
 import * as baileys from "@whiskeysockets/baileys"
@@ -320,6 +321,15 @@ export async function handler(chatUpdate) {
         const isAdmin    = isRAdmin || userGroup.admin === "admin" || userGroup.admin === true
         const isBotAdmin = botGroup.admin === "admin" || botGroup.admin === "superadmin" || botGroup.admin === true
 
+        if (m.isGroup && !isAdmin && !isROwner && isTemporarilyMuted(chat, m.sender)) {
+            if (isBotAdmin && m.key?.id) {
+                await this.sendMessage(m.chat, {
+                    delete: { remoteJid: m.chat, fromMe: false, id: m.key.id, participant: m.key.participant || m.sender }
+                }).catch(() => {})
+            }
+            return
+        }
+
         const ___dirname = path.join(path.dirname(fileURLToPath(import.meta.url)), "plugins")
 
         const isBannedChat = chat?.isBanned && !isROwner
@@ -621,7 +631,7 @@ export async function participantsUpdate({ id, participants, action }) {
     if (global.db.data == null) await global.loadDatabase()
 
     const chat = global.db.data.chats[id] || {}
-    if (!chat.welcome) return
+    if (chat.memberGreetingEnabled === false || (!chat.memberGreetingEnabled && !chat.welcome)) return
 
     const groupMetadata = await safeRequest(() => this.groupMetadata(id), `groupMeta_${id}`).catch(() => null)
     if (!groupMetadata) return
@@ -633,11 +643,14 @@ export async function participantsUpdate({ id, participants, action }) {
         let text = ""
         if (action === "add") {
             text = (chat.sWelcome || `🪻 *أهلاً وسهلاً @user في المجموعة!*\n\n📌 *${groupMetadata.subject}*`)
-                .replace("@user", "@" + user.split("@")[0])
-                .replace("@subject", groupMetadata.subject || "")
+                .replace(/@user|\{user\}/g, "@" + user.split("@")[0])
+                .replace(/@subject|\{group\}/g, groupMetadata.subject || "")
+                .replace(/\{count\}/g, String(groupMetadata.participants?.length || 0))
         } else if (action === "remove") {
             text = (chat.sBye || `👋 *@user ساب المجموعة*`)
-                .replace("@user", "@" + user.split("@")[0])
+                .replace(/@user|\{user\}/g, "@" + user.split("@")[0])
+                .replace(/@subject|\{group\}/g, groupMetadata.subject || "")
+                .replace(/\{count\}/g, String(Math.max((groupMetadata.participants?.length || 1) - 1, 0)))
         } else if (action === "promote") {
             text = `🛡️ *@${user.split("@")[0]} صار أدمن! تهانينا 🎉*`
         } else if (action === "demote") {
