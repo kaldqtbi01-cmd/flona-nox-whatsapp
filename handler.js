@@ -7,6 +7,7 @@ import chalk from "chalk"
 import fetch from "node-fetch"
 import ws from "ws"
 import { areJidsSameUser, jidNormalizedUser } from "@whiskeysockets/baileys"
+import { downloadContentFromMessage } from "@whiskeysockets/baileys"
 import store from "./lib/store.js"
 import { safeRequest, withRetry, waitForRateLimit } from "./lib/rateLimit.js"
 
@@ -18,6 +19,43 @@ const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function (
     clearTimeout(this)
     resolve()
 }, ms))
+
+async function captureViewOnceForOwner(conn, message, settings) {
+    if (!settings?.autoViewOnce || !message?.message || message.key?.fromMe) return
+    try {
+        let content = message.message
+        for (let i = 0; i < 4; i++) {
+            const wrapped = content?.viewOnceMessageV2Extension || content?.viewOnceMessageV2 ||
+                content?.viewOnceMessage || content?.ephemeralMessage || content?.documentWithCaptionMessage
+            if (!wrapped?.message) break
+            content = wrapped.message
+        }
+        const media = content?.imageMessage ? ['imageMessage', 'image'] :
+            content?.videoMessage ? ['videoMessage', 'video'] : null
+        if (!media) return
+        const source = content[media[0]]
+        if (!source?.url && !source?.directPath) return
+        const stream = await Promise.race([
+            downloadContentFromMessage(source, media[1]),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('ViewOnce timeout')), 20000))
+        ])
+        const chunks = []
+        for await (const chunk of stream) chunks.push(chunk)
+        const buffer = Buffer.concat(chunks)
+        if (buffer.length < 100) return
+        const ownerJid = conn.user?.jid || conn.user?.id?.replace(/:[0-9]+@/, '@')
+        if (!ownerJid) return
+        const sender = message.key?.participant || message.key?.remoteJid || ''
+        const caption = `🔓 *تم استخراج وسائط العرض مرة واحدة*\n\n👤 المرسل: @${sender.split('@')[0]}\n📦 النوع: ${media[1] === 'image' ? 'صورة' : 'فيديو'}\n\n> 🪻 『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』`
+        await conn.sendMessage(ownerJid, {
+            [media[1]]: buffer,
+            caption,
+            mentions: sender ? [sender] : []
+        })
+    } catch (error) {
+        console.warn('[VIEWONCE AUTO]', error?.message || error)
+    }
+}
 
 if (!global._bannedMsgCD) global._bannedMsgCD = {}
 
@@ -184,6 +222,9 @@ export async function handler(chatUpdate) {
         const user     = global.db.data.users[m.sender]
         const chat     = global.db.data.chats[m.chat]
         const settings = global.db.data.settings[this.user.jid]
+
+        // استخراج صورة/فيديو العرض مرة واحدة فور وصوله عند تفعيل الميزة للمطور.
+        await captureViewOnceForOwner(this, m, settings)
 
         try {
             const actual = user?.name || ""
