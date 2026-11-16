@@ -21,7 +21,9 @@ let handler = async (m, { conn, usedPrefix }) => {
     '🔗│ ' + usedPrefix + 'atlasdl <رابط TikTok/Instagram/Pinterest/Facebook/X/YouTube>\n' +
     '🔗│ ' + usedPrefix + 'xdl <رابط من X>\n' +
     '🔗│ ' + usedPrefix + 'pindl <رابط من Pinterest>\n' +
-    '🔗│ ' + usedPrefix + 'تنزيل_صوت <رابط YouTube>\n\n' +
+    '🔗│ ' + usedPrefix + 'تنزيل_صوت <رابط YouTube>\n' +
+    '🔗│ ' + usedPrefix + 'تشغيل <اسم فيديو YouTube>\n' +
+    '🔗│ ' + usedPrefix + 'تشغيل_صوت <اسم أغنية YouTube>\n\n' +
     '🔗│ ' + usedPrefix + 'تحميل\n\n' +    
     '> 🔗 ' + botName + ' 🔗'
 

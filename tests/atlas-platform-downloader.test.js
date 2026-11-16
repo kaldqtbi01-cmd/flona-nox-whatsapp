@@ -3,8 +3,11 @@ import test from 'node:test'
 import {
   classifyPlatformLink,
   createAtlasDownloadHandler,
+  createAtlasYoutubeSearchHandler,
+  resolveAtlasYoutubeSearch,
   resolveAtlasMedia,
 } from '../lib/atlas-platform-downloader.js'
+import gameHandler from '../plugins/لعبة.js'
 
 const fixtures = [
   {
@@ -134,4 +137,61 @@ test('تكامل الإضافة: يبلغ عن فشل الرابط للمستخ�
   })
   assert.equal(count, 0)
   assert.deepEqual(replies, ['❌ offline mock'])
+})
+
+test('بحث YouTube بالاسم ينزل أول نتيجة كفيديو', async () => {
+  const calls = []
+  const httpGet = async rawUrl => {
+    const url = new URL(rawUrl)
+    calls.push(url)
+    if (url.pathname === '/faa/youtube') {
+      return { data: { status: true, result: [{ title: 'Sample video', link: 'https://youtube.com/watch?v=abcdefghijk' }] } }
+    }
+    return { data: { status: true, result: { title: 'Sample video', download_url: 'https://cdn.example.test/search-video.mp4' } } }
+  }
+
+  const items = await resolveAtlasYoutubeSearch('sample video', { httpGet })
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].searchParams.get('q'), 'sample video')
+  assert.equal(calls[1].pathname, '/faa/ytmp4')
+  assert.equal(items[0].type, 'video')
+  assert.equal(items[0].url, 'https://cdn.example.test/search-video.mp4')
+  assert.equal(items[0].caption, '🎬 Sample video')
+})
+
+test('بحث YouTube بالاسم ينزل أول نتيجة كصوت MP3 ويرسلها فعليًا إلى mock conn', async () => {
+  const sent = []
+  const replies = []
+  const calls = []
+  const m = { chat: 'test@s.whatsapp.net', key: { id: 'search-audio' }, reply: async text => replies.push(text) }
+  const conn = { sendMessage: async (...args) => { sent.push(args) } }
+  const handler = createAtlasYoutubeSearchHandler({
+    audioOnly: true,
+    httpGet: async rawUrl => {
+      const url = new URL(rawUrl)
+      calls.push(url)
+      if (url.pathname === '/faa/youtube') {
+        return { data: { status: true, result: [{ title: 'Sample song', link: 'https://youtu.be/abcdefghijk' }] } }
+      }
+      return { data: { status: true, result: { title: 'Sample song', mp3: 'https://cdn.example.test/search-audio.mp3' } } }
+    },
+  })
+
+  const count = await handler(m, { conn, text: 'sample song' })
+  assert.equal(count, 1)
+  assert.equal(calls[1].pathname, '/faa/ytmp3')
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0][1].audio.url, 'https://cdn.example.test/search-audio.mp3')
+  assert.equal(sent[0][1].mimetype, 'audio/mpeg')
+  assert.equal(sent[0][2].quoted, m)
+  assert.deepEqual(replies, [])
+})
+
+test('لا يقبل البحث نتيجة ليست من YouTube، وأمر اللعبة أصبح بدء_اللعبة', async () => {
+  await assert.rejects(resolveAtlasYoutubeSearch('something', {
+    httpGet: async () => ({ data: { status: true, result: [{ title: 'Not YouTube', link: 'https://example.org/watch' }] } }),
+  }), /الرابط غير مدعوم/)
+  assert.equal(gameHandler.command.test('تشغيل'), false)
+  assert.equal(gameHandler.command.test('بدء_اللعبة'), true)
+  assert.equal(gameHandler.command.test('تشغيل_اللعبة'), true)
 })

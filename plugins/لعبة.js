@@ -37,7 +37,7 @@ function help(prefix) {
   return `╭──「 🕵️ المافيا والمدينة 」──╮
 │ ${prefix}لعبة — فتح لعبة جديدة
 │ ${prefix}دخول — الانضمام للعبة
-│ ${prefix}تشغيل — توزيع الأدوار
+│ ${prefix}بدء_اللعبة — توزيع الأدوار
 │ ${prefix}اللاعبون — عرض الأحياء
 │ ${prefix}وضع — حالة اللعبة
 │
@@ -76,7 +76,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     if (games.has(chat)) return m.reply('⚠️ توجد لعبة مافيا قائمة بالفعل في هذا الجروب.')
     g = { host: sender, phase: 'lobby', round: 0, players: {}, votes: {}, kills: {}, heal: null, inspect: null, ended: false }
     games.set(chat, g)
-    return m.reply(`╭──「 🕵️ المافيا والمدينة 」──╮\n│ تم فتح التسجيل!\n│ أقل عدد: 5 لاعبين\n╰──────────────────╯\n\nللانضمام اكتب:\n*${prefix}دخول*\n\nبعد اكتمال العدد يكتب صاحب اللعبة:\n*${prefix}تشغيل*\n\nللمساعدة: ${prefix}أوامر`)
+    return m.reply(`╭──「 🕵️ المافيا والمدينة 」──╮\n│ تم فتح التسجيل!\n│ أقل عدد: 5 لاعبين\n╰──────────────────╯\n\nللانضمام اكتب:\n*${prefix}دخول*\n\nبعد اكتمال العدد يكتب صاحب اللعبة:\n*${prefix}بدء_اللعبة*\n\nللمساعدة: ${prefix}أوامر`)
   }
 
   if (!g) return m.reply(`لا توجد لعبة مافيا. اكتب ${prefix}لعبة لبدء لعبة جديدة.`)
@@ -93,7 +93,7 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
     return m.reply(`👥 *قائمة اللاعبين*\n\n${Object.entries(g.players).map(([jid, p], i) => `${i + 1}. ${tag(jid)} — ${p.alive ? 'حي ✅' : 'خرج 💀'}`).join('\n') || 'لا يوجد لاعبون'}`)
   }
 
-  if (/^(تشغيل|launch)$/i.test(action)) {
+  if (/^(بدء_اللعبة|تشغيل_اللعبة|launch)$/i.test(action)) {
     if (sender !== g.host) return m.reply('❌ صاحب اللعبة فقط يستطيع بدءها.')
     if (g.phase !== 'lobby') return m.reply('اللعبة بدأت بالفعل.')
     const ids = Object.keys(g.players)
@@ -202,8 +202,8 @@ let handler = async (m, { args, usedPrefix, command, conn }) => {
   return m.reply(`أمر غير معروف. اكتب ${prefix}أوامر لرؤية أوامر المافيا.`)
 }
 
-handler.help = ['لعبة', 'دخول', 'تشغيل', 'اللاعبون', 'اغتيال @', 'إنقاذ @', 'فحص @', 'صباح', 'ترشيح @', 'فرز', 'وضع', 'كشف', 'إيقاف', 'أوامر']
+handler.help = ['لعبة', 'دخول', 'بدء_اللعبة', 'تشغيل_اللعبة', 'اللاعبون', 'اغتيال @', 'إنقاذ @', 'فحص @', 'صباح', 'ترشيح @', 'فرز', 'وضع', 'كشف', 'إيقاف', 'أوامر']
 handler.tags = ['games']
-handler.command = /^(لعبة|game|دخول|enter|اللاعبون|roster|تشغيل|launch|اغتيال|eliminate|إنقاذ|rescue|فحص|scan|صباح|morning|ترشيح|nominate|فرز|tally|وضع|state|كشف|reveal|إيقاف|halt|أوامر|commands)$/i
+handler.command = /^(لعبة|game|دخول|enter|اللاعبون|roster|بدء_اللعبة|تشغيل_اللعبة|launch|اغتيال|eliminate|إنقاذ|rescue|فحص|scan|صباح|morning|ترشيح|nominate|فرز|tally|وضع|state|كشف|reveal|إيقاف|halt|أوامر|commands)$/i
 
 export default handler
