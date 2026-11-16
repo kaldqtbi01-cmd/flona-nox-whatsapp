@@ -15,7 +15,7 @@ const VIDEO_URL = 'https://files.catbox.moe/9n2xcd.mp4'
 const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
 const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
-const MENU_FILE = path.join(MENU_DIR, 'menu.mp4')
+const MENU_FILE = path.join(MENU_DIR, 'flona-menu.mp4')
 
 async function ensureMenuVideo() {
   if (!fs.existsSync(MENU_DIR)) {
