@@ -215,9 +215,27 @@ let handler = await import(handlerUrl)
 function bindHandlers(sock) {
     if (!sock) return
     if (sock.handler) sock.ev.off("messages.upsert", sock.handler)
+    if (sock.statusHandler) sock.ev.off("messages.upsert", sock.statusHandler)
     sock.handler = handler.handler.bind(sock)
+    sock.statusHandler = async (update) => {
+        try {
+            const settings = global.db?.data?.settings?.[sock.user?.jid] || {}
+            if (!settings.autoStatus) return
+            for (const message of update?.messages || []) {
+                if (message?.key?.remoteJid !== "status@broadcast") continue
+                await sock.readMessages([message.key]).catch(() => {})
+                if (settings.autoStatusReact) {
+                    await sock.sendMessage("status@broadcast", {
+                        react: { text: "💚", key: message.key },
+                        statusJidList: [message.key.participant || message.key.remoteJid]
+                    }).catch(() => {})
+                }
+            }
+        } catch {}
+    }
     // الرسائل الخاصة والمجموعات تمر كلها عبر نفس المعالج (m.isGroup يحدد النوع)
     sock.ev.on("messages.upsert", sock.handler)
+    sock.ev.on("messages.upsert", sock.statusHandler)
 }
 
 global._lastMsgTime = Date.now()

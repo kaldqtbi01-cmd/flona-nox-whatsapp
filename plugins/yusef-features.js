@@ -82,7 +82,7 @@ let handler = async (m, { conn, text, command }) => {
 }
 
 handler.help = ['مدح @منشن', 'شخصية @منشن', 'كرة8 <سؤال>', 'بحث_يوتيوب <كلمة>', 'صور_دول <الدولة>', 'جرأة']
-handler.tags = ['fun', 'tools']
+handler.tags = ['fun', 'downloader', 'image']
 handler.command = /^(مدح|شخصية|كرة8|بحث_يوتيوب|صور_دول|جرأة)$/i
 
 export default handler
