@@ -4,7 +4,7 @@
  */
 
 import { downloadContentFromMessage, downloadMediaMessage } from '@whiskeysockets/baileys'
-import { findViewOnceMedia, getPrimaryOwnerJid, isViewOnceAutoEnabled } from '../lib/view-once.js'
+import { findViewOnceMedia, getPrimaryOwnerJid, hasViewOnceWrapper, isViewOnceAutoEnabled } from '../lib/view-once.js'
 
 const processedMessages = new Map()
 const MAX_PROCESSED_MESSAGES = 5000
@@ -19,9 +19,7 @@ function claimMessage(key) {
   return true
 }
 
-function releaseMessage(key) {
-  processedMessages.delete(key)
-}
+function releaseMessage(key) { processedMessages.delete(key) }
 
 function mediaOptions(conn) {
   return {
@@ -34,14 +32,11 @@ function mediaOptions(conn) {
 
 async function downloadViewOnce(conn, m, media) {
   const errors = []
-
   try {
     const buffer = await downloadMediaMessage(m, 'buffer', {}, mediaOptions(conn))
     if (Buffer.isBuffer(buffer) && buffer.length > 0) return buffer
     errors.push('downloadMediaMessage: نتيجة فارغة')
-  } catch (error) {
-    errors.push(`downloadMediaMessage: ${error?.message || error}`)
-  }
+  } catch (error) { errors.push(`downloadMediaMessage: ${error?.message || error}`) }
 
   try {
     const stream = await downloadContentFromMessage(media.message, media.type)
@@ -50,9 +45,7 @@ async function downloadViewOnce(conn, m, media) {
     const buffer = Buffer.concat(chunks)
     if (buffer.length > 0) return buffer
     errors.push('downloadContentFromMessage: نتيجة فارغة')
-  } catch (error) {
-    errors.push(`downloadContentFromMessage: ${error?.message || error}`)
-  }
+  } catch (error) { errors.push(`downloadContentFromMessage: ${error?.message || error}`) }
 
   throw new Error(errors.join(' | '))
 }
@@ -75,29 +68,9 @@ function captionFor(m, groupMetadata, media) {
 }
 
 async function forwardToOwner(conn, ownerJid, buffer, media, caption) {
-  if (media.type === 'image') {
-    await conn.sendMessage(ownerJid, {
-      image: buffer,
-      ...(media.message.mimetype ? { mimetype: media.message.mimetype } : {}),
-      caption,
-    })
-    return
-  }
-
-  if (media.type === 'video') {
-    await conn.sendMessage(ownerJid, {
-      video: buffer,
-      mimetype: media.message.mimetype || 'video/mp4',
-      caption,
-    })
-    return
-  }
-
-  await conn.sendMessage(ownerJid, {
-    audio: buffer,
-    mimetype: media.message.mimetype || 'audio/ogg; codecs=opus',
-    ptt: media.message.ptt === true,
-  })
+  if (media.type === 'image') return conn.sendMessage(ownerJid, { image: buffer, ...(media.message.mimetype ? { mimetype: media.message.mimetype } : {}), caption })
+  if (media.type === 'video') return conn.sendMessage(ownerJid, { video: buffer, mimetype: media.message.mimetype || 'video/mp4', caption })
+  await conn.sendMessage(ownerJid, { audio: buffer, mimetype: media.message.mimetype || 'audio/ogg; codecs=opus', ptt: media.message.ptt === true })
   await conn.sendMessage(ownerJid, { text: caption })
 }
 
@@ -109,8 +82,7 @@ handler.all = async function (m, { settings, groupMetadata }) {
   if (!m.chat || m.chat === 'status@broadcast' || m.chat.endsWith('@newsletter')) return
 
   const media = findViewOnceMedia(m.message)
-  if (!media) return
-
+  if (!media && !hasViewOnceWrapper(m.message)) return
   const messageId = m.key?.id
   if (!messageId) return
   const dedupeKey = `${m.chat}:${messageId}`
@@ -123,6 +95,12 @@ handler.all = async function (m, { settings, groupMetadata }) {
     return
   }
 
+  if (!media) {
+    console.warn(`[VIEWONCE] رُصد غلاف دون صورة/فيديو/صوت قابل للتنزيل: ${messageId}`)
+    await this.sendMessage(ownerJid, { text: '⚠️ وصلت رسالة ViewOnce لكن لم تصل معها بيانات صورة أو فيديو أو صوت قابلة للحفظ. جرّب إرسال وسائط جديدة بعد إعادة تشغيل البوت؛ قد يرسل Baileys إشعارًا مختصرًا فقط.' }).catch(() => {})
+    return
+  }
+
   try {
     const buffer = await downloadViewOnce(this, m, media)
     await forwardToOwner(this, ownerJid, buffer, media, captionFor(m, groupMetadata, media))
@@ -130,6 +108,7 @@ handler.all = async function (m, { settings, groupMetadata }) {
   } catch (error) {
     releaseMessage(dedupeKey)
     console.error(`[VIEWONCE] فشل حفظ الرسالة ${messageId}:`, error?.message || error)
+    await this.sendMessage(ownerJid, { text: '⚠️ رصد FLONA رسالة ViewOnce، لكنه لم يستطع تنزيل الوسائط. راجع سجل البوت عند [VIEWONCE] أو أرسل وسائط جديدة بعد إعادة تشغيله.' }).catch(() => {})
   }
 }
 
