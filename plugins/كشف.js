@@ -138,10 +138,9 @@ async function M4_fakeWM(conn, m, media) {
         message: { [media.key]: media.obj },
         ...(m.isGroup ? { participant: m.quoted.sender } : {})
     })
-    const buf = await downloadMediaMessage(fakeWM, 'buffer', {}, {
-        logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} },
-        reuploadRequest: conn.updateMediaMessage?.bind(conn),
-    })
+    const options = { logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} } }
+    if (typeof conn.updateMediaMessage === 'function') options.reuploadRequest = conn.updateMediaMessage.bind(conn)
+    const buf = await downloadMediaMessage(fakeWM, 'buffer', {}, options)
     if (buf?.length > 100) return buf
     throw new Error('buffer فاضي')
 }
@@ -149,10 +148,9 @@ async function M4_fakeWM(conn, m, media) {
 async function M5_rawVM(conn, m) {
     const vM = m.quoted?.vM || m.quoted?.fakeObj
     if (!vM) throw new Error('مفيش vM')
-    const buf = await downloadMediaMessage(vM, 'buffer', {}, {
-        logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} },
-        reuploadRequest: conn.updateMediaMessage?.bind(conn),
-    })
+    const options = { logger: { info:()=>{}, error:()=>{}, warn:()=>{}, debug:()=>{} } }
+    if (typeof conn.updateMediaMessage === 'function') options.reuploadRequest = conn.updateMediaMessage.bind(conn)
+    const buf = await downloadMediaMessage(vM, 'buffer', {}, options)
     if (buf?.length > 100) return buf
     throw new Error('buffer فاضي')
 }
@@ -238,7 +236,12 @@ let handler = async (m, { conn }) => {
 
     for (const [name, fn] of methods) {
         try {
-            const res = await fn()
+            // بعض إصدارات WhatsApp تترك stream مفتوحًا عند انتهاء صلاحية ViewOnce؛
+            // لا نسمح لمحاولة واحدة بتجميد الأمر، وننتقل للطريقة التالية.
+            const res = await Promise.race([
+                fn(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('انتهت مهلة التنزيل')), 15000)),
+            ])
             if (res === 'forwarded') { await react('✅'); return }
             buf = res
             break
