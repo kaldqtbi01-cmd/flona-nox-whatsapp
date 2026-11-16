@@ -4,7 +4,29 @@
  */
 
 import { downloadContentFromMessage, downloadMediaMessage } from '@whiskeysockets/baileys'
-import { findViewOnceMedia, getPrimaryOwnerJid, hasViewOnceWrapper, isViewOnceAutoEnabled } from '../lib/view-once.js'
+import { findViewOnceMedia, getPrimaryOwnerJid, isViewOnceAutoEnabled } from '../lib/view-once.js'
+
+const VIEW_ONCE_WRAPPERS = [
+  'viewOnceMessageV2Extension',
+  'viewOnceMessageV2',
+  'viewOnceMessage',
+]
+
+function hasViewOnceWrapper(message) {
+  let current = message || {}
+  for (let depth = 0; depth < 12 && current; depth++) {
+    const viewOnceKey = VIEW_ONCE_WRAPPERS.find(key => current[key]?.message)
+    if (viewOnceKey) return true
+    const transparentKey = ['ephemeralMessage', 'documentWithCaptionMessage']
+      .find(key => current[key]?.message)
+    if (transparentKey) {
+      current = current[transparentKey].message
+      continue
+    }
+    break
+  }
+  return false
+}
 
 const processedMessages = new Map()
 const MAX_PROCESSED_MESSAGES = 5000
