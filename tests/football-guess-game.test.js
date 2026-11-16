@@ -44,13 +44,16 @@ function setup() {
     user: { jid: 'bot@s.whatsapp.net' },
     sendMessage: async (...payload) => { sent.push(payload); return payload },
   }
-  const invoke = async ({ sender = 'alice@s.whatsapp.net', command, text = '', mention = false, isGroup = true } = {}) => {
+  const invoke = async ({
+    sender = 'alice@s.whatsapp.net', command, text = '', mention = false,
+    mentionJid = 'bob@s.whatsapp.net', isGroup = true, participantList,
+  } = {}) => {
     const m = {
       chat: 'test@g.us', sender, isGroup,
-      mentionedJid: mention ? ['bob@s.whatsapp.net'] : [],
+      mentionedJid: mention ? [mentionJid] : [],
       reply: async value => { replies.push(value); return value },
     }
-    const participants = [
+    const participants = participantList || [
       { id: 'alice@s.whatsapp.net' },
       { id: 'bob@s.whatsapp.net' },
       { id: 'charlie@s.whatsapp.net' },
@@ -90,6 +93,28 @@ test('بدء اللعبة يرسل صورة بلا اسم اللاعب في ال
   assert.deepEqual(payload.mentions, ['alice@s.whatsapp.net'])
   const result = await invoke({ sender: 'charlie@s.whatsapp.net', command: 'لاعب_خمن', text: 'شيء' })
   assert.match(result.replies.at(-1), /فقط/)
+})
+
+test('يقبل المنشن ومعرّف المرسل بصيغة LID مختلفة عن JID الهاتف', async () => {
+  const { invoke, sent, replies } = setup()
+  const participantList = [
+    { id: 'alice@s.whatsapp.net', lid: 'alice@lid' },
+    { id: 'bob@s.whatsapp.net', lid: 'bob@lid' },
+    { id: 'charlie@s.whatsapp.net', lid: 'charlie@lid' },
+  ]
+  await invoke({ command: 'تخمين_لاعب', mention: true, mentionJid: 'bob@lid', participantList })
+  assert.equal(sent.length, 1)
+  await invoke({ command: 'لاعب_سؤال', text: 'هل يلعب في الدوري السعودي؟', participantList })
+  await invoke({ sender: 'bob@lid', command: 'لاعب_خمن', text: 'اسم غير صحيح', participantList })
+  assert.match(replies.at(-1), /الاسم غير صحيح/)
+  assert.equal(sent.length, 3)
+})
+
+test('يرفض منشن شخص غير موجود في المجموعة برسالة توضح إعادة اختياره', async () => {
+  const { invoke, sent, replies } = setup()
+  await invoke({ command: 'تخمين_لاعب', mention: true, mentionJid: 'outsider@s.whatsapp.net' })
+  assert.equal(sent.length, 0)
+  assert.match(replies.at(-1), /اختر الشخص من قائمة أعضاء المجموعة/)
 })
 
 test('إجابة نعم تبقي الدور، وإجابة لا تسلمه للمشارك الثاني وتعرض صورته', async () => {
