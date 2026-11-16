@@ -95,6 +95,7 @@ export async function handler(chatUpdate) {
 
     let m = chatUpdate.messages[chatUpdate.messages.length - 1]
     if (!m) return
+    const originalIncomingMessage = m
     if (global.db.data == null) await global.loadDatabase()
 
     try {
@@ -224,7 +225,7 @@ export async function handler(chatUpdate) {
         const settings = global.db.data.settings[this.user.jid]
 
         // استخراج صورة/فيديو العرض مرة واحدة فور وصوله عند تفعيل الميزة للمطور.
-        await captureViewOnceForOwner(this, m, settings)
+        await captureViewOnceForOwner(this, originalIncomingMessage, settings)
 
         try {
             const actual = user?.name || ""
