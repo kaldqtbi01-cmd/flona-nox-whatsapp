@@ -13,32 +13,37 @@ https://whatsapp.com/channel/0029VbC5LLx6GcGDXZUmHP0y
 */
 
 import fs from "fs"
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
+import { sanitizeError, publicPluginError } from "../lib/safe-error.js"
 
 let handler = async (m, { conn }) => {
   
   let step = "0 - بداية الأمر"
 
   try {
-    const allowedNumbers = [
-      "963949597160",
-      "201097786373"
-    ]
+    const allowedNumbers = String(process.env.FLONA_BACKUP_ALLOWED_SENDERS || "")
+      .split(",")
+      .map(number => number.replace(/\D/g, ""))
+      .filter(Boolean)
+    const senderNumber = String(m.sender || "").replace(/\D/g, "")
 
-    if (!allowedNumbers.includes(m.sender.replace(/[^0-9+]/g, ""))) {
+    if (!allowedNumbers.length || !allowedNumbers.includes(senderNumber)) {
       return m.reply("❌ انت مش مسموحلك تاخد النسخة الاحتياطية")
     }
 
     const tempDir = "./tmp"
     const backupName = "NOX-BOT"
     const backupPath = `${tempDir}/${backupName}.zip`
-    const password = "NoxBot_ShanksX_William"
-    const target = "120363430524886172@g.us"
+    const password = process.env.FLONA_BACKUP_ARCHIVE_PASSWORD
+    const target = String(process.env.FLONA_BACKUP_TARGET || "").trim()
+    if (!password || password.length < 12 || !/^\d{5,20}@(s\.whatsapp\.net|g\.us)$/.test(target)) {
+      return m.reply("❌ ميزة النسخ الاحتياطي غير مهيأة؛ راجع متغيرات FLONA_BACKUP_* في إعدادات البيئة.")
+    }
 
     
     step = "1 - فحص تثبيت أمر zip"
     try {
-      execSync("zip -v", { stdio: "pipe" })
+      execFileSync("zip", ["-v"], { stdio: "pipe" })
     } catch {
       throw new Error("أمر zip مش متسطب على السيرفر. نزله بـ: apt install zip -y")
     }
@@ -59,7 +64,6 @@ let handler = async (m, { conn }) => {
       "lib",
       "plugins",
       "src",
-      "tmp",
       "A7A.js",
       "handler.js",
       "index.js",
@@ -73,12 +77,9 @@ let handler = async (m, { conn }) => {
     if (missing.length) console.warn("[NOX BACKUP] ملفات مش موجودة وهيتم تخطيها:", missing.join(", "))
     if (list.length === 0) throw new Error("ولا ملف من القائمة موجود في مكان تشغيل البوت")
 
-    const ls = list.map(f => `"${f}"`).join(" ")
-
-    
     step = "4 - إنشاء ملف الزيب (zip)"
     try {
-      execSync(`zip -r -q -P "${password}" "${backupPath}" ${ls}`, {
+      execFileSync("zip", ["-r", "-q", "-P", password, backupPath, ...list], {
         stdio: "pipe",
         maxBuffer: 1024 * 1024 * 200
       })
@@ -110,15 +111,15 @@ let handler = async (m, { conn }) => {
       await conn.sendMessage(target, payload, { quoted: m })
       sentTo = "الجروب"
     } catch (sendErr) {
-      console.error("[NOX BACKUP] فشل الإرسال للجروب:", sendErr.message)
+      console.error("[NOX BACKUP] فشل الإرسال للجروب:", sanitizeError(sendErr))
       
       step = "6 - إرسال الملف (بديل: الشات الحالي/الخاص)"
       const fallback = m.chat
       await conn.sendMessage(fallback, payload, { quoted: m })
-      sentTo = `الشات الحالي (الإرسال للجروب فشل: ${sendErr.message})`
+      sentTo = "الشات الحالي بعد تعذر الإرسال للمستلم المهيأ"
     }
 
-    if (sentTo !== "الجروب") await m.reply(`⚠️ اتبعتت النسخة في: ${sentTo}\nتأكد إن رقم البوت عضو في الجروب ${target} وإنه أدمن لو الجروب مقفول.`)
+    if (sentTo !== "الجروب") await m.reply("⚠️ أُرسلت النسخة في الشات الحالي بعد تعذر الإرسال للمستلم المهيأ.")
 
     
     step = "7 - حذف الملف المؤقت"
@@ -127,25 +128,8 @@ let handler = async (m, { conn }) => {
     if (m.chat !== m.sender) return m.reply("ف جروبنا يا مطوري المظ🫦")
 
   } catch (e) {
-    console.error(`[NOX BACKUP] فشل في الخطوة: ${step}`, e)
-
-    const stderr = e.stderr?.toString().trim()
-    const stdout = e.stdout?.toString().trim()
-    const stackLine = e.stack
-      ?.split("\n")
-      .find(l => l.includes("at ") && !l.includes("node:internal"))
-      ?.trim()
-
-    let report = "❌ فشل إنشاء النسخة الاحتياطية\n\n"
-    report += `📍 *الخطوة:* ${step}\n`
-    report += `⚠️ *الخطأ:* ${e.message}\n`
-    if (e.code) report += `🔢 *الكود:* ${e.code}\n`
-    if (e.status !== undefined && e.status !== null) report += `🔢 *exit status:* ${e.status}\n`
-    if (stderr) report += `\n📄 *stderr:*\n${stderr.slice(0, 500)}\n`
-    if (stdout) report += `\n📄 *stdout:*\n${stdout.slice(0, 300)}\n`
-    if (stackLine) report += `\n📌 *المكان في الكود:*\n${stackLine}`
-
-    m.reply(report)
+    console.error(`[NOX BACKUP] فشل في الخطوة: ${step}`, sanitizeError(e))
+    m.reply(publicPluginError(e))
   }
 }
 

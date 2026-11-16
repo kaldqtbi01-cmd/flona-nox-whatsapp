@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const ELEVENLABS_API_KEY = "sk_ce4df1ada3d4e2f9e6821a4972b769f2c179abe933f977f4"
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || ''
 
 const voices = {
   male:    "pNInz6obpgDQGcFmaJgB",

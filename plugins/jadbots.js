@@ -200,7 +200,6 @@ export async function gataJadiBot(options, text) {
                 }, { quoted: m })
                 codeBot = await m.reply(secret)
             }
-            console.log(secret)
         }
 
         if ((txtCode?.key || txtCode?.id)) {

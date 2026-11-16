@@ -22,6 +22,7 @@ import { getLRCLyrics, parseSyncedLyrics, plainLyricsToSynced } from '../lib/lrc
 import { savetubeRetry } from '../lib/savetube.js';
 import { downloadAudioBuffer, compressAudio } from '../lib/ffmpeg.js';
 import { getThumb, createHighQualityThumbnail, createMusicPlayer } from '../lib/player.js';
+import { sanitizeError, publicPluginError } from '../lib/safe-error.js';
 
 let ytMusicInstance = null;
 async function getYTMusic() {
@@ -118,8 +119,8 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     }
 
     const thumb = await getThumb(thumbUrl);
-    await createHighQualityThumbnail(conn, thumb);
-    const imageSrc = thumb?.length ? `data:image/jpeg;base64,${thumb.toString('base64')}` : '';
+    const optimizedThumb = await createHighQualityThumbnail(conn, thumb);
+    const imageSrc = optimizedThumb?.length ? `data:image/jpeg;base64,${optimizedThumb.toString('base64')}` : '';
 
     const audio = await savetubeRetry(ytUrl, { downloadType: 'audio', quality: '128kbps' });
     if (!audio?.url) throw new Error('URL audio tidak tersedia');
@@ -133,9 +134,9 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     await m.react('✅');
 
   } catch (error) {
-    console.error('[PLAY2 ERROR]', error);
+    console.error('[PLAY2 ERROR]', sanitizeError(error));
     await m.react('❌');
-    await conn.sendMessage(m.chat, { text: `❌ Gagal memproses lagu.\n\n> ${error?.message || 'Unknown error'}` }, { quoted: m });
+    await conn.sendMessage(m.chat, { text: `❌ تعذر تجهيز المقطع الصوتي.\n${publicPluginError(error)}` }, { quoted: m });
   }
 };
 

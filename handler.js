@@ -9,6 +9,7 @@ import ws from "ws"
 import { areJidsSameUser, jidNormalizedUser } from "@whiskeysockets/baileys"
 import store from "./lib/store.js"
 import { safeRequest, withRetry, waitForRateLimit } from "./lib/rateLimit.js"
+import { sanitizeError, publicPluginError } from "./lib/safe-error.js"
 
 
 import * as baileys from "@whiskeysockets/baileys"
@@ -504,11 +505,11 @@ export async function handler(chatUpdate) {
                     commandHandled = true
                 } catch (err) {
                     m.error = err
-                    console.error(err)
+                    console.error(`[PLUGIN ERROR] ${name}: ${sanitizeError(err)}`)
                     const _errText = [
                         "~*『✦▬▬▬✦┇• 🪻 •┇✦▬▬▬✦』*~\n🪻 صار خطأ في الأمر",
                         `📌 الأمر: ${command || "مجهول"}`,
-                        `❌ الخطأ: ${err?.message || String(err)}`,
+                        `❌ ${publicPluginError(err)}`,
                         "~*『✦▬▬▬✦┇• 🪻 •┇✦▬▬▬✦』*~"
                     ].join("\n")
                     const _errJid = m.key?.remoteJid || m.chat || ""
@@ -528,7 +529,7 @@ export async function handler(chatUpdate) {
         }
 
     } catch (err) {
-        console.error(chalk.red('[HANDLER]'), err)
+        console.error(chalk.red(`[HANDLER] ${sanitizeError(err)}`))
     } finally {
         if (this.msgqueque) {
             const qi = this.msgqueque.indexOf(m?.id || m?.key?.id)

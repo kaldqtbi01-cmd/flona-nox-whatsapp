@@ -156,8 +156,7 @@ async function searchPinterest(query) {
         csrfToken = parts.split('=')[1]
       }
     }
-
-    console.log('🔑 CSRF:', csrfToken ? csrfToken.substring(0, 10) + '...' : 'none')
+  console.log('[cta_url] CSRF token present:', Boolean(csrfToken))
     console.log('🍪 Cookies:', cookieStr ? 'OK' : 'none')
 
     // ─── أيضاً استخراج صور من HTML ──────

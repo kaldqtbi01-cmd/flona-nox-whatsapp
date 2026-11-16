@@ -221,16 +221,7 @@ const handler = async (m, { conn, text, usedPrefix }) => {
       let proto
 
       try {
-
-         let baileysLib
-
-         try {
-            baileysLib =
-               await import('@whiskeysockets/baileys')
-         } catch {
-            baileysLib =
-               await import('baileys')
-         }
+         const baileysLib = await import('@whiskeysockets/baileys')
 
          generateWAMessageFromContent =
             baileysLib?.generateWAMessageFromContent ||
@@ -241,10 +232,7 @@ const handler = async (m, { conn, text, usedPrefix }) => {
             baileysLib?.default?.proto
 
       } catch (e) {
-         console.error(
-            `[${BOT_NAME} BAILEYS ERROR]`,
-            e
-         )
+         console.error(`[${BOT_NAME}] تعذّر تهيئة مكونات الرسالة`)
       }
 
       if (

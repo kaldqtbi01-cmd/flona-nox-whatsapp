@@ -19,6 +19,7 @@ import { createRequire } from "module"
 import { platform } from "process"
 import { format } from "util"
 import { Low, JSONFile } from "lowdb"
+import { sanitizeError } from "../lib/safe-error.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 
@@ -167,7 +168,7 @@ async function filesInit() {
             const module = await import(file)
             global.plugins[filename] = module.default || module
         } catch (e) {
-            console.error(`[plugin] ${filename}:`, e.message)
+            console.error(`[plugin] ${filename}: ${sanitizeError(e)}`)
             delete global.plugins[filename]
         }
     }))
@@ -200,7 +201,7 @@ global.reload = async (_ev, filename) => {
             global.plugins[filename] = module.default || module
             console.log(cheonGray(`  🔄 تم إعادة تحميل: ${filename}`))
         } catch (e) {
-            console.error(`❌ '${filename}'\n${format(e)}`)
+            console.error(`❌ '${filename}'\n${sanitizeError(e)}`)
         }
     }, 500)
 }
@@ -312,7 +313,7 @@ whatsapp.on("open", async (sock) => {
             const { checkSubBots } = await import("../plugins/jadbots.js")
             await checkSubBots()
         } catch (e) {
-            console.error("❌ تعذر إعادة تشغيل جلسات البوتات الفرعية:", e.message)
+            console.error(`❌ تعذر إعادة تشغيل جلسات البوتات الفرعية: ${sanitizeError(e)}`)
         }
     }, 5000)
 })
@@ -326,7 +327,7 @@ global.reloadHandler = async function (restartConn) {
     try {
         const Handler = await import(`${handlerUrl}?update=${Date.now()}`)
         if (Object.keys(Handler || {}).length) handler = Handler
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(`[reloadHandler] ${sanitizeError(e)}`) }
 
     if (restartConn) {
         await whatsapp.restart("reloadHandler")
@@ -387,12 +388,12 @@ setInterval(async () => {
                 console.log(cheonGray(`Watchdog: الاتصال شغّال، البوت صامت بس`))
             }
         } catch (e) {
-            console.error("Watchdog error:", e.message)
+            console.error(`Watchdog error: ${sanitizeError(e)}`)
         }
     }
 }, 5 * 60 * 1000)
 
-process.on("uncaughtException", (err) => console.error(cheonRed("  ⚠️  " + (err?.message || err))))
-process.on("unhandledRejection", (reason) => console.error(cheonRed("  ⚠️  " + (reason?.message || reason))))
+process.on("uncaughtException", (err) => console.error(cheonRed("  ⚠️  " + sanitizeError(err))))
+process.on("unhandledRejection", (reason) => console.error(cheonRed("  ⚠️  " + sanitizeError(reason))))
 
 console.log(cheonGreen("\n  ✅ 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 شغّال! 🪻\n"))

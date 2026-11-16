@@ -97,21 +97,32 @@ apt update && apt upgrade && pkg install -y git nodejs ffmpeg imagemagick yarn
 ```
 
 ```bash
-git clone https://github.com/Loydsumer/NAGUMO-BOT && cd NAGUMO-BOT
+git clone https://github.com/kaldqtbi01-cmd/flona-nox-whatsapp.git && cd flona-nox-whatsapp
 ```
 
 ```bash
-yarn install
+cp secrets.env.example .env
+chmod 600 .env
 ```
 
 ```bash
-npm install
-```
-
-```bash
-npm update
+npm ci
 ```
 
 ```bash
 npm start
 
+
+
+### 🔐 إعداد مفاتيح الخدمات
+
+انسخ نموذج الإعدادات إلى ملف محلي غير متعقّب، ثم أدخل مفاتيح الخدمات التي تحتاجها فقط:
+
+```bash
+cp secrets.env.example .env
+chmod 600 .env
+npm ci
+npm start
+```
+
+لا ترفع `.env` أو مجلد `auth_info_baileys/` أو `sessions/` إلى Git. إذا كانت مفاتيح خدمة قد ظهرت في نسخة عامة سابقة من المشروع، فألغِها أو دوّرها من لوحة مزود الخدمة قبل إدخال مفاتيح جديدة. راجع [سياسة الأسرار والمصادر](docs/SECURITY-AND-SOURCES.md) للتفاصيل.

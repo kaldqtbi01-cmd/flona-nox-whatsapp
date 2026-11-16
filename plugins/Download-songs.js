@@ -38,14 +38,12 @@ const handlerSearch = async (m, { conn, text, usedPrefix }) => {
 
     let generateWAMessageFromContent, proto;
     try {
-      let baileysLib;
-      try { baileysLib = await import('@whiskeysockets/baileys') }
-      catch { baileysLib = await import('baileys') }
+      const baileysLib = await import('@whiskeysockets/baileys');
 
       generateWAMessageFromContent = baileysLib?.generateWAMessageFromContent || baileysLib?.default?.generateWAMessageFromContent;
       proto = baileysLib?.proto || baileysLib?.default?.proto;
     } catch (e) {
-      console.error(e);
+      console.error('[Download-songs] تعذّر تهيئة مكونات الرسالة');
     }
 
     if (generateWAMessageFromContent && proto) {

@@ -17,7 +17,7 @@ import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 
 const p1 = 'sk-or-v1-';
 const p2 = '09042705e4f0620a976199d4204463605d90cdffb2822299ce9812aa02c66e2d';
-const OPENROUTER_API_KEY = process.env.OPENROUTER_KEY || '';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
 
 let handler = async (m, { conn, usedPrefix, command }) => {
     let q = m.quoted ? m.quoted : m;

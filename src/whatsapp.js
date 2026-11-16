@@ -25,6 +25,7 @@ import pino from "pino"
 import QRCode from "qrcode"
 import NodeCache from "node-cache"
 import phoneLib from "google-libphonenumber"
+import { sanitizeError } from "../lib/safe-error.js"
 
 // الحزمة CommonJS: الـ default في Node هو module.exports كاملاً (نفس أسلوب lib/simple.js)
 const baileys = (await import("@whiskeysockets/baileys")).default
@@ -84,9 +85,7 @@ export function maskNumber(value = "") {
 
 /** رسالة خطأ آمنة للسجل: الكود + نص مختصر، بدون stack أو data */
 function safeErrorText(error) {
-    if (!error) return "unknown"
-    const msg = String(error.message || error).split("\n")[0].slice(0, 160)
-    return msg
+    return sanitizeError(error || "unknown", 160)
 }
 
 function readJsonSafe(file) {

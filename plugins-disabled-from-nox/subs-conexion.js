@@ -281,9 +281,6 @@ export async function MichiJadiBot(options) {
           txtCode = await conn.sendMessage(m.chat, { text: rtx2, ...global.rcanal }, { quoted: m })
 
           codeBot = await m.reply(secret)
-
-          console.log(secret)
-
           if (txtCode?.key) setTimeout(() => { conn.sendMessage(m.sender, { delete: txtCode.key }) }, 30000)
 
           if (codeBot?.key) setTimeout(() => { conn.sendMessage(m.sender, { delete: codeBot.key }) }, 30000)
