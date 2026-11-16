@@ -22,7 +22,6 @@ import { Low, JSONFile } from "lowdb"
 import { sanitizeError } from "../lib/safe-error.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
-import { captureViewOnceUpdate } from "../lib/view-once-capture.js"
 
 // كل المسارات النسبية في البوت والإضافات (./tmp, ./media, database.json ...) تبدأ من جذر المشروع
 process.chdir(ROOT_DIR)
@@ -218,12 +217,7 @@ function bindHandlers(sock) {
     if (!sock) return
     if (sock.handler) sock.ev.off("messages.upsert", sock.handler)
     if (sock.statusHandler) sock.ev.off("messages.upsert", sock.statusHandler)
-    if (sock.viewOnceHandler) sock.ev.off("messages.upsert", sock.viewOnceHandler)
     sock.handler = handler.handler.bind(sock)
-    // مسار مستقل عن البلجنات والأوامر: يلتقط الرسالة الخام قبل أي معالجة أخرى.
-    sock.viewOnceHandler = (update) => captureViewOnceUpdate(sock, update).catch(error => {
-        console.error('[VIEWONCE DIRECT]', error?.message || error)
-    })
     sock.statusHandler = async (update) => {
         try {
             const settings = global.db?.data?.settings?.[sock.user?.jid] || {}
@@ -241,7 +235,6 @@ function bindHandlers(sock) {
         } catch {}
     }
     // الرسائل الخاصة والمجموعات تمر كلها عبر نفس المعالج (m.isGroup يحدد النوع)
-    sock.ev.on("messages.upsert", sock.viewOnceHandler)
     sock.ev.on("messages.upsert", sock.handler)
     sock.ev.on("messages.upsert", sock.statusHandler)
 }

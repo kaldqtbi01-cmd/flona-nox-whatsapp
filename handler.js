@@ -57,30 +57,6 @@ export async function handler(chatUpdate) {
         try { await this.pushMessage(chatUpdate.messages) } catch {}
     }
 
-    // قد يحتوي حدث upsert الواحد على أكثر من رسالة. مسار الأوامر أدناه
-    // يعالج آخر رسالة فقط، لذلك نعطي بلجن ViewOnce فرصة فحص الرسائل السابقة
-    // حتى لا تضيع وسائط وصلت في نفس الدفعة.
-    const incomingMessages = Array.isArray(chatUpdate.messages) ? chatUpdate.messages : []
-    if (incomingMessages.length > 1) {
-        const viewOncePlugin = global.plugins?.['كشف.js'] ||
-            Object.values(global.plugins || {}).find(plugin => plugin?.help?.includes?.('فضح'))
-        if (typeof viewOncePlugin?.all === "function") {
-            const batchSettings = global.db?.data?.settings?.[this.user?.jid] || {}
-            for (const rawMessage of incomingMessages.slice(0, -1)) {
-                try {
-                    const queuedMessage = smsg(this, rawMessage)
-                    if (!queuedMessage?.message) continue
-                    await viewOncePlugin.all.call(this, queuedMessage, {
-                        settings: batchSettings,
-                        groupMetadata: {},
-                    })
-                } catch (error) {
-                    console.error('[VIEWONCE BATCH]', error?.message || error)
-                }
-            }
-        }
-    }
-
     let m = chatUpdate.messages[chatUpdate.messages.length - 1]
     if (!m) return
     if (global.db.data == null) await global.loadDatabase()
