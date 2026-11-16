@@ -36,6 +36,7 @@ function setup() {
     random: () => 0,
     imageLookup: async player => ({
       url: `https://images.example/${player.id}.jpg`,
+      buffer: Buffer.from(player.id),
       credit: 'Photographer — CC BY 4.0',
       sourceUrl: `https://commons.wikimedia.org/wiki/File:${player.id}.jpg`,
     }),
@@ -87,7 +88,7 @@ test('بدء اللعبة يرسل صورة بلا اسم اللاعب في ال
   await invoke({ command: 'تخمين_لاعب', mention: true })
   assert.equal(sent.length, 1)
   const [, payload] = sent[0]
-  assert.equal(payload.image.url, 'https://images.example/test-forward.jpg')
+  assert.equal(Buffer.from(payload.image).toString(), 'test-forward')
   assert.match(payload.caption, /Photographer — CC BY 4\.0/)
   assert.doesNotMatch(payload.caption, /لاعب هجومي|Test Forward/)
   assert.deepEqual(payload.mentions, ['alice@s.whatsapp.net'])
@@ -126,7 +127,7 @@ test('إجابة نعم تبقي الدور، وإجابة لا تسلمه لل�
   assert.match(replies.at(-1), /انتظر دورك/)
   await invoke({ command: 'لاعب_سؤال', text: 'هل يلعب في الدوري الإسباني؟' })
   assert.equal(sent.length, 2)
-  assert.equal(sent[1][1].image.url, 'https://images.example/test-goalkeeper.jpg')
+  assert.equal(Buffer.from(sent[1][1].image).toString(), 'test-goalkeeper')
   assert.match(sent[1][1].caption, /@bob/)
 })
 
@@ -135,7 +136,7 @@ test('التخمين الخاطئ ينقل الدور، والصحيح ينهي 
   await invoke({ command: 'تخمين_لاعب', mention: true })
   await invoke({ command: 'لاعب_خمن', text: 'اسم غير صحيح' })
   assert.match(replies.at(-1), /غير صحيح/)
-  assert.equal(sent.at(-1)[1].image.url, 'https://images.example/test-goalkeeper.jpg')
+  assert.equal(Buffer.from(sent.at(-1)[1].image).toString(), 'test-goalkeeper')
   await invoke({ sender: 'bob@s.whatsapp.net', command: 'لاعب_خمن', text: 'حارس تجريبي' })
   assert.match(replies.at(-1), /خمنت اللاعب بنجاح/)
   assert.match(replies.at(-1), /اللاعب كان: \*حارس تجريبي\*/)
@@ -177,14 +178,21 @@ test('جلب صورة Commons يرفض غير المرخص ويعيد رابط �
         descriptionurl: 'https://commons.wikimedia.org/wiki/File:Test_Forward_match.jpg',
         extmetadata: {
           LicenseShortName: { value: 'CC BY-SA 4.0' },
+          LicenseUrl: { value: 'https://creativecommons.org/licenses/by-sa/4.0/' },
           Artist: { value: '<a>Photographer</a>' },
           ImageDescription: { value: 'Test Forward playing football' },
         },
       }],
     },
   } } } })
-  const result = await findFreePlayerPhoto(players[0], mockGet)
+  const mockImageGet = async (url, config) => {
+    assert.equal(url, 'https://upload.wikimedia.org/wikipedia/commons/thumb/example.jpg')
+    assert.equal(config.responseType, 'arraybuffer')
+    return { data: Buffer.from('fake-image'), headers: { 'content-type': 'image/jpeg' } }
+  }
+  const result = await findFreePlayerPhoto(players[0], mockGet, mockImageGet)
   assert.equal(result.url, 'https://upload.wikimedia.org/wikipedia/commons/thumb/example.jpg')
+  assert.equal(result.buffer.toString(), 'fake-image')
   assert.equal(result.credit, 'Photographer — CC BY-SA 4.0')
   assert.match(result.sourceUrl, /commons.wikimedia.org/)
 
@@ -192,5 +200,5 @@ test('جلب صورة Commons يرفض غير المرخص ويعيد رابط �
     1: { title: 'File:Test Forward photo.jpg', imageinfo: [{ thumburl: 'https://upload.wikimedia.org/photo.jpg', extmetadata: {
       LicenseShortName: { value: 'Fair use' }, ImageDescription: { value: 'Test Forward' },
     } }] },
-  } } } })), /لم أجد صورة موثقة/)
+  } } } }), mockImageGet), /لم أجد صورة موثقة/)
 })
