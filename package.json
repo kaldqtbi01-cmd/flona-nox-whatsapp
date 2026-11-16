@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "node index.js",
+    "test": "node --test",
     "qr": "node index.js qr",
     "code": "node index.js code",
     "relink": "node index.js relink qr",
