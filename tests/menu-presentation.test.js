@@ -19,20 +19,22 @@ test('main menu presents the FLONA identity, greeting, status and navigation in 
   assert.match(text, /\*أقسام فلونا:\* 10/)
   assert.match(text, /اختر وجهتك من الأزرار بالأسفل/)
   assert.match(text, /\*أهلاً بك يا @12345\*/)
+  assert.match(text, /🦋/)
+  assert.match(text, /🎀 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 🎀/)
 })
 
 test('category menu formats each command with the active prefix and exact command count', () => {
   const text = formatCategoryMenuText({
-    section: { title: 'الألعاب والترفيه', icon: '🎮' },
+    section: { title: 'الألعاب والترفيه', icon: '🎀' },
     commands: ['تحدي', 'كرة8 <سؤال>'],
     usedPrefix: '!'
   })
 
-  assert.match(text, /🎮 𝐅𝐋𝐎𝐍𝐀/)
+  assert.match(text, /🎀 𝐅𝐋𝐎𝐍𝐀 🎀/)
   assert.match(text, /الألعاب والترفيه/)
   assert.match(text, /\*عدد الأوامر:\* 2/)
-  assert.match(text, /🟢  \*!تحدي\*/)
-  assert.match(text, /🟢  \*!كرة8 <سؤال>\*/)
+  assert.match(text, /💗  \*!تحدي\*/)
+  assert.match(text, /💗  \*!كرة8 <سؤال>\*/)
 })
 
 test('empty category still receives the branded layout and an accurate zero count', () => {

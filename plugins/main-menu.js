@@ -71,14 +71,14 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: "🌙 اختر وجهتك",
-                    sections: [{ title: '✦ أقسام FLONA', rows: getCategoryRows(allTags, usedPrefix) }]
+                    title: "🎀 اختاري وجهتك",
+                    sections: [{ title: '🌸 أقسام FLONA', rows: getCategoryRows(allTags, usedPrefix) }]
                   })
                 },
                 {
                   name: "quick_reply",
                   buttonParamsJson: JSON.stringify({
-                    display_text: "🏠 العودة لقائمة FLONA",
+                    display_text: "🌷 العودة لقائمة FLONA",
                     id: `${usedPrefix}menu`
                   })
                 }
@@ -119,7 +119,7 @@ let handler = async (m, { conn, usedPrefix, args }) => {
       sectionCount: allTags.length
     })
 
-    await conn.sendMessage(m.chat, { react: { text: '‍🌓', key: m.key } })
+    await conn.sendMessage(m.chat, { react: { text: '🦋', key: m.key } })
 
     const videoBuffer = await ensureMenuVideo()
     const mediaMessage = await prepareWAMessageMedia(
@@ -129,11 +129,11 @@ let handler = async (m, { conn, usedPrefix, args }) => {
 
     const flonaSections = [
       {
-        title: "☾ FLONA • اختيارات سريعة ☽",
-        highlight_label: "✦ بوابتك إلى فلونا",
+        title: "🎀 FLONA • اختيارات سريعة 🌸",
+        highlight_label: "💗 بوابتك إلى فلونا",
         rows: [
-          { title: "🌟 استكشف الأقسام", description: "اختر من أقسام FLONA المرتبة", id: `${usedPrefix}menu` },
-          { title: "⚡ نبض البوت", description: "سرعة واستقرار النظام", id: `${usedPrefix}ping` },
+          { title: "🌸 استكشفي الأقسام", description: "عالم FLONA مرتب لكِ بعناية", id: `${usedPrefix}menu` },
+          { title: "✨ نبض البوت", description: "سرعة واستقرار النظام", id: `${usedPrefix}ping` },
           { title: "👑 حكاية FLONA", description: "هوية البوت ومعلوماته", id: `${usedPrefix}مطور` }
         ]
       }
@@ -141,7 +141,7 @@ let handler = async (m, { conn, usedPrefix, args }) => {
 
     const sectionsOnly = [
       {
-        title: "✦ عوالم FLONA",
+        title: "🌷 عوالم FLONA",
         rows: getCategoryRows(allTags, usedPrefix)
       }
     ]
@@ -161,14 +161,14 @@ let handler = async (m, { conn, usedPrefix, args }) => {
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: "🌙 بوابة FLONA",
+                    title: "🎀 بوابة FLONA",
                     sections: flonaSections
                   })
                 },
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: "✨ استكشف الأقسام",
+                    title: "🌸 استكشفي الأقسام",
                     sections: sectionsOnly
                   })
                 }
@@ -184,11 +184,11 @@ let handler = async (m, { conn, usedPrefix, args }) => {
                   in_thread_buttons_limit: 1,
                   divider_indices: [1],
                   list_title: BRAND_NAME,
-                  button_title: "افتح عالم FLONA"
+                  button_title: "افتحي عالم FLONA"
                 },
                 tap_target_configuration: {
-                  title: `☾ FLONA ${BRAND_NAME} ◂`,
-                  description: "قائمتك إلى عالم فلونا",
+                  title: `🎀 FLONA ${BRAND_NAME} ◂`,
+                  description: "بوابتك الجميلة لعالم فلونا",
                   canonical_url: "https://whatsapp.com",
                   domain: "https://whatsapp.com",
                   button_index: 0
