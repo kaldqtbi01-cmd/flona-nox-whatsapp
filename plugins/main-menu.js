@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
 import { MENU_SECTIONS, getMenuCategories, getMenuCommands, normalizeMenuSection } from '../lib/menu-categories.js'
+import { formatCategoryMenuText, formatMainMenuText, formatUptime } from '../lib/menu-presentation.js'
 
 const VIDEO_URL = 'https://files.catbox.moe/9n2xcd.mp4'
 const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
@@ -42,26 +43,13 @@ function getCategoryRows(tags, usedPrefix = '.') {
   })
 }
 
-function getCommandsByTag(tag, usedPrefix = '.') {
-  const icon = MENU_SECTIONS[tag]?.icon || '⚘'
-  return getMenuCommands(global.plugins || {}, tag)
-    .map(command => `${icon} *${usedPrefix}${command}*`)
-}
-
-function decorateCategoryHeader(tag, cmdCount) {
-  const { icon, title } = MENU_SECTIONS[tag]
-  return `╭━━━━━━━━━━━━━━━━━━━╮
-┃ ${icon} ${title} ${icon} ┃
-╰━━━━━━━━━━━━━━━━━━━╯
-⚘ *الأوامر المتاحة:* ${cmdCount} ⚘`
-}
-
 async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
-  const cmds = getCommandsByTag(tag, usedPrefix)
-  const header = decorateCategoryHeader(tag, cmds.length)
-  const txt = cmds.length === 0
-    ? '⚠️ لا توجد أوامر في هذا القسم حالياً'
-    : `${header}\n\n${cmds.join('\n')}`
+  const commands = getMenuCommands(global.plugins || {}, tag)
+  const txt = formatCategoryMenuText({
+    section: MENU_SECTIONS[tag],
+    commands,
+    usedPrefix
+  })
 
   try {
     const videoBuffer = await ensureMenuVideo()
@@ -83,14 +71,14 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: "📂 اختر قسم آخر",
-                    sections: [{ title: '📂 أقسام البوت', rows: getCategoryRows(allTags, usedPrefix) }]
+                    title: "🌙 اختر وجهتك",
+                    sections: [{ title: '✦ أقسام FLONA', rows: getCategoryRows(allTags, usedPrefix) }]
                   })
                 },
                 {
                   name: "quick_reply",
                   buttonParamsJson: JSON.stringify({
-                    display_text: "🔙 رجوع للرئيسية",
+                    display_text: "🏠 العودة لقائمة FLONA",
                     id: `${usedPrefix}menu`
                   })
                 }
@@ -117,28 +105,19 @@ let handler = async (m, { conn, usedPrefix, args }) => {
       return await sendCategoryMenu(m, conn, tag, usedPrefix)
     }
 
-    let uptimeSec = process.uptime()
-    let uptimeStr = `${Math.floor(uptimeSec/3600)}h ${Math.floor((uptimeSec%3600)/60)}m ${Math.floor(uptimeSec%60)}s`
+    const uptimeStr = formatUptime(process.uptime())
     const now     = moment().tz("Africa/Cairo")
     const timeStr = now.format("hh:mm:ss A")
     const tagUser = '@' + m.sender.split('@')[0]
-    const line    = "━━━━━━━━━━━━━━━━━━━━━━"
 
     const allTags = getActiveTags()
-    const txt = `
-╭━━━━━━━━━━━━━━━━━━━━╮
-┃  『 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 』  ┃
-╰━━━━━━━━━━━━━━━━━━━━╯
-أهلاً بك ${tagUser} ✦
-
-👑 المطور: ${BRAND_DEV}
-⏱️ التشغيل: ${uptimeStr}
-🕒 الوقت: ${timeStr}
-📂 الأقسام المتاحة: ${allTags.length}
-
-اضغط زر «📂 الأقسام» لعرض الأوامر حسب القسم.
-كل قسم يعرض أوامره بشكل مستقل لتبقى القائمة مرتبة.
-`
+    const txt = formatMainMenuText({
+      mention: tagUser,
+      developer: BRAND_DEV,
+      uptime: uptimeStr,
+      time: timeStr,
+      sectionCount: allTags.length
+    })
 
     await conn.sendMessage(m.chat, { react: { text: '‍🌓', key: m.key } })
 
@@ -150,19 +129,19 @@ let handler = async (m, { conn, usedPrefix, args }) => {
 
     const flonaSections = [
       {
-        title: BRAND_NAME,
-        highlight_label: "⚡ خيارات سريعة",
+        title: "☾ FLONA • اختيارات سريعة ☽",
+        highlight_label: "✦ بوابتك إلى فلونا",
         rows: [
-          { title: "📂 الأقسام", description: "عرض الأوامر حسب القسم", id: `${usedPrefix}menu` },
-          { title: "حـالـة الـنـظـام", description: "فحص السرعة والأداء", id: `${usedPrefix}ping` },
-          { title: "هوية البوت", description: "معلومات FLONA BOT", id: `${usedPrefix}مطور` }
+          { title: "🌟 استكشف الأقسام", description: "اختر من أقسام FLONA المرتبة", id: `${usedPrefix}menu` },
+          { title: "⚡ نبض البوت", description: "سرعة واستقرار النظام", id: `${usedPrefix}ping` },
+          { title: "👑 حكاية FLONA", description: "هوية البوت ومعلوماته", id: `${usedPrefix}مطور` }
         ]
       }
     ]
 
     const sectionsOnly = [
       {
-        title: "📂 أقسام البوت",
+        title: "✦ عوالم FLONA",
         rows: getCategoryRows(allTags, usedPrefix)
       }
     ]
@@ -182,14 +161,14 @@ let handler = async (m, { conn, usedPrefix, args }) => {
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: `${BRAND_NAME} 🌓`,
+                    title: "🌙 بوابة FLONA",
                     sections: flonaSections
                   })
                 },
                 {
                   name: "single_select",
                   buttonParamsJson: JSON.stringify({
-                    title: "📂 الأقسام",
+                    title: "✨ استكشف الأقسام",
                     sections: sectionsOnly
                   })
                 }
@@ -205,11 +184,11 @@ let handler = async (m, { conn, usedPrefix, args }) => {
                   in_thread_buttons_limit: 1,
                   divider_indices: [1],
                   list_title: BRAND_NAME,
-                  button_title: "فتح قائمة FLONA"
+                  button_title: "افتح عالم FLONA"
                 },
                 tap_target_configuration: {
-                  title: `${BRAND_NAME} ◂`,
-                  description: "القائمة الرئيسية",
+                  title: `☾ FLONA ${BRAND_NAME} ◂`,
+                  description: "قائمتك إلى عالم فلونا",
                   canonical_url: "https://whatsapp.com",
                   domain: "https://whatsapp.com",
                   button_index: 0
