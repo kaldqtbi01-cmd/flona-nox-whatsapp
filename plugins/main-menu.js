@@ -8,57 +8,13 @@ import { prepareWAMessageMedia, generateWAMessageFromContent } from '@whiskeysoc
 import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
+import { MENU_SECTIONS, getMenuCategories, getMenuCommands, normalizeMenuSection } from '../lib/menu-categories.js'
 
 const VIDEO_URL = 'https://files.catbox.moe/9n2xcd.mp4'
 const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
 const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
 const MENU_FILE = path.join(MENU_DIR, 'menu.mp4')
-
-
-const categoryNames = {
-  'main':         '✨ الرئيسية',
-  'owner':        '👑 المطور',
-  'ai':           '🤖 الذكاء الاصطناعي',
-  'anime':        '🌸 الأنمي والمانجا',
-  'economy':      '💰 الاقتصاد',
-  'game':         '🎮 الألعاب',
-  'group':        '🛡️ إدارة المجموعات',
-  'grupo':        '👥 أدوات الجروبات',
-  'info':         '📖 المعلومات',
-  'internet':     '🌐 الإنترنت',
-  'sticker':      '🏷️ الملصقات',
-  'tools':        '🧰 الأدوات',
-  'download':     '⬇️ التنزيل',
-  'downloader':   '📥 التحميل',
-  'daily':        '📅 اليوميات',
-  'serbot':       '🤖 ربط البوتات',
-  'image':        '🖼️ الصور',
-  'herramientas': '🔧 الخدمات',
-  'nable':        '🔌 التفعيلات',
-}
-
-const tagIcons = {
-  'main':         '✨',
-  'owner':        '👑',
-  'ai':           '🤖',
-  'anime':        '🌸',
-  'economy':      '💰',
-  'game':         '🎮',
-  'group':        '🛡️',
-  'grupo':        '👥',
-  'info':         'ℹ️',
-  'internet':     '🌐',
-  'sticker':      '🏷️',
-  'tools':        '🧰',
-  'download':     '⬇️',
-  'downloader':   '📥',
-  'daily':        '📅',
-  'serbot':       '🤖',
-  'image':        '🖼️',
-  'herramientas': '🔧',
-  'nable':        '🔌',
-}
 
 async function ensureMenuVideo() {
   if (!fs.existsSync(MENU_DIR)) {
@@ -72,40 +28,37 @@ async function ensureMenuVideo() {
 }
 
 function getActiveTags() {
-  return [...new Set(
-    Object.values(global.plugins || {})
-      .filter(p => !p.disabled && p.tags)
-      .flatMap(p => Array.isArray(p.tags) ? p.tags : [p.tags])
-  )].filter(Boolean)
+  return getMenuCategories(global.plugins || {})
 }
 
 function getCategoryRows(tags, usedPrefix = '.') {
-  return tags.map(tag => ({
-    title: `${tagIcons[tag] || '📂'} ${categoryNames[tag] || tag}`,
-    description: `عرض أوامر ${categoryNames[tag] || tag}`,
-    id: `${usedPrefix}menu ${tag}`
-  }))
+  return tags.map(tag => {
+    const section = MENU_SECTIONS[tag]
+    return {
+      title: `${section.icon} ${section.title}`,
+      description: `عرض أوامر ${section.title}`,
+      id: `${usedPrefix}menu ${tag}`
+    }
+  })
 }
 
-function getCommandsByTag(tag) {
-  return Object.values(global.plugins || {})
-    .filter(p => !p.disabled && p.tags && (Array.isArray(p.tags) ? p.tags : [p.tags]).includes(tag))
-    .flatMap(p => (Array.isArray(p.help) ? p.help : [p.help]).filter(Boolean))
-    .map(cmd => `${tagIcons[tag] || '⚘'} *.${cmd}*`)
+function getCommandsByTag(tag, usedPrefix = '.') {
+  const icon = MENU_SECTIONS[tag]?.icon || '⚘'
+  return getMenuCommands(global.plugins || {}, tag)
+    .map(command => `${icon} *${usedPrefix}${command}*`)
 }
 
-function decorateCategoryHeader(catName, cmdCount) {
-  const emoji = catName.split(' ')[0]
+function decorateCategoryHeader(tag, cmdCount) {
+  const { icon, title } = MENU_SECTIONS[tag]
   return `╭━━━━━━━━━━━━━━━━━━━╮
-┃ ${emoji} ${catName} ${emoji} ┃
+┃ ${icon} ${title} ${icon} ┃
 ╰━━━━━━━━━━━━━━━━━━━╯
 ⚘ *الأوامر المتاحة:* ${cmdCount} ⚘`
 }
 
 async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
-  const cmds = getCommandsByTag(tag)
-  const catName = `${tagIcons[tag] || '📂'} ${categoryNames[tag] || tag}`
-  const header = decorateCategoryHeader(catName, cmds.length)
+  const cmds = getCommandsByTag(tag, usedPrefix)
+  const header = decorateCategoryHeader(tag, cmds.length)
   const txt = cmds.length === 0
     ? '⚠️ لا توجد أوامر في هذا القسم حالياً'
     : `${header}\n\n${cmds.join('\n')}`
@@ -159,8 +112,8 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
 
 let handler = async (m, { conn, usedPrefix, args }) => {
   try {
-    const tag = args[0]?.trim().toLowerCase()
-    if (tag && categoryNames[tag]) {
+    const tag = normalizeMenuSection(args[0]?.trim())
+    if (tag && MENU_SECTIONS[tag]) {
       return await sendCategoryMenu(m, conn, tag, usedPrefix)
     }
 
