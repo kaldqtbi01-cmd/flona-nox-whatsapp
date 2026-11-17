@@ -11,6 +11,7 @@ import store from "./lib/store.js"
 import { safeRequest, withRetry, waitForRateLimit } from "./lib/rateLimit.js"
 import { sanitizeError, publicPluginError } from "./lib/safe-error.js"
 import { isTemporarilyMuted } from "./lib/group-moderation.js"
+import { appendMessage } from "./lib/message-history.js"
 
 
 import * as baileys from "@whiskeysockets/baileys"
@@ -221,6 +222,12 @@ export async function handler(chatUpdate) {
         const isPrems = isROwner || allPremsJids.includes(m.sender) || user?.premium === true
 
         if (!m.message) return
+
+        if (global.featureStore) {
+            appendMessage(global.featureStore, m).catch(error =>
+                console.error('[FEATURE STORE]', error?.message || error)
+            )
+        }
 
         global.lastMessageTime = Date.now()
         m.exp += Math.ceil(Math.random() * 10)

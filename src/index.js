@@ -20,6 +20,7 @@ import { platform } from "process"
 import { format } from "util"
 import { Low, JSONFile } from "lowdb"
 import { sanitizeError } from "../lib/safe-error.js"
+import { initFeatureStore } from "../lib/feature-store.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 
@@ -107,6 +108,7 @@ global.db.data = {
     settings: {},
     ...(global.db.data || {}),
 }
+global.featureStore = initFeatureStore(global.db)
 
 global.loadDatabase = async function() {
     if (global.db.data) return
