@@ -3,6 +3,7 @@ import { listAudit, appendAudit } from '../lib/audit.js'
 import { createDraft, listPending, transition, editDraft } from '../lib/approval-outbox.js'
 import { detectModeration, fingerprint } from '../lib/moderation-policy.js'
 import { normalizeMessage } from '../lib/message-contract.js'
+import { listMemories, searchMemories, remember, forgetMemory, reconstructContext } from '../lib/agent-memory.js'
 
 function store() { return global.featureStore }
 function owner(m) { return Boolean(m.isROwner || m.isOwner || m.fromMe) }
@@ -12,6 +13,41 @@ function argsOf(m) { return String(m.text || '').trim().split(/\s+/).slice(1) }
 const handler = async (m, { usedPrefix = '.', command }) => {
   if (!store()) return m.reply('مخزن الميزات غير مهيأ بعد.')
   const args = argsOf(m)
+  if (command === 'ذاكرة') {
+    const mode = args.shift() || 'عرض'
+    if (mode === 'حفظ') {
+      const text = args.join(' ')
+      if (!text) return m.reply(`استخدم: ${usedPrefix}ذاكرة حفظ <معلومة>`)
+      await remember(store(), { scope: m.chat, owner: m.sender, text })
+      return m.reply('تم حفظ المعلومة في الذاكرة الخاصة بهذه المحادثة.')
+    }
+    if (mode === 'بحث') {
+      const rows = searchMemories(store(), { scope: m.chat, owner: m.sender, query: args.join(' '), limit: 10 })
+      return m.reply(rows.length ? rows.map(item => `${item.id}: ${item.text}`).join('\n') : 'لا توجد ذاكرة مطابقة.')
+    }
+    if (mode === 'حذف') {
+      const removed = await forgetMemory(store(), { scope: m.chat, owner: m.sender, memoryId: args[0] })
+      return m.reply(removed ? 'تم حذف الذاكرة.' : 'لم أجد ذاكرة بهذا المعرف أو لا تملك صلاحية حذفها.')
+    }
+    const rows = listMemories(store(), { scope: m.chat, owner: m.sender, limit: Number(args[0]) || 10 })
+    return m.reply(rows.length ? rows.map(item => `${item.id}: ${item.text}`).join('\n') : 'لا توجد معلومات محفوظة لهذه المحادثة.')
+  }
+  if (command === 'إعادة_السياق') {
+    const context = reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: Number(args[0]) || 10 })
+    return m.reply(`إعادة بناء السياق\nالرسائل: ${context.messages.length}\nالذكريات: ${context.memories.length}\n${context.memories.map(item => `• ${item.text}`).join('\n')}`)
+  }
+  if (command === 'وكيل') {
+    const request = args.join(' ')
+    if (!request) return m.reply(`استخدم: ${usedPrefix}وكيل <المهمة>\nالوكيل لا ينفذ أوامر نظام ولا يرسل تلقائيًا.`)
+    if (!global.agentEngine) return m.reply('محرك الوكيل غير مهيأ بعد.')
+    try {
+      const context = reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: 10 })
+      const plan = await global.agentEngine.plan({ request, context })
+      const outputs = await global.agentEngine.execute({ plan, scope: m.chat, owner: m.sender, context })
+      const text = outputs.map(item => item?.text || (item?.id ? `مسودة بانتظار الموافقة: ${item.id}` : 'تم تنفيذ الخطوة.')).join('\n')
+      return m.reply(`خطة الوكيل: ${plan.goal}\n${text}`.slice(0, 3500))
+    } catch (error) { return m.reply(`تعذر تشغيل الوكيل: ${String(error.message || 'خطأ').slice(0, 180)}`) }
+  }
   if (command === 'حالة_الذكاء') {
     const status = global.aiProviders?.status?.() || {}
     const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
@@ -82,8 +118,8 @@ handler.all = async function (m) {
   await appendAudit(store(), { type: 'moderation.violation', actor: m.sender, chatId: m.chat, data: { violations: result.violations, fingerprint: fingerprint(m.text) } })
 }
 
-handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'سياق', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
+handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
 handler.tags = ['tools', 'owner', 'group']
-handler.command = /^(حالة_الميزات|حالة_الذكاء|سياق|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
+handler.command = /^(حالة_الميزات|حالة_الذكاء|سياق|إعادة_السياق|ذاكرة|وكيل|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
 
 export default handler

@@ -23,6 +23,7 @@ import { sanitizeError } from "../lib/safe-error.js"
 import { initFeatureStore } from "../lib/feature-store.js"
 import { createAIProviders } from "../lib/ai-providers.js"
 import { createAICore } from "../lib/ai-core.js"
+import { createAgentEngine } from "../lib/agent-memory.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 
@@ -113,6 +114,7 @@ global.db.data = {
     ...(global.db.data || {}),
 }
 global.featureStore = initFeatureStore(global.db)
+global.agentEngine = createAgentEngine({ core: global.aiCore, store: global.featureStore })
 
 global.loadDatabase = async function() {
     if (global.db.data) return
