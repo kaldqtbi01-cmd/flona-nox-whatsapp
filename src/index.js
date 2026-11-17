@@ -21,12 +21,14 @@ import { format } from "util"
 import { Low, JSONFile } from "lowdb"
 import { sanitizeError } from "../lib/safe-error.js"
 import { initFeatureStore } from "../lib/feature-store.js"
+import { createAIProviders } from "../lib/ai-providers.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 
 // كل المسارات النسبية في البوت والإضافات (./tmp, ./media, database.json ...) تبدأ من جذر المشروع
 process.chdir(ROOT_DIR)
 await import("../config.js")
+global.aiProviders = createAIProviders()
 
 const { makeWASocket: MakeSocket, protoType, serialize } = await import("../lib/simple.js")
 const { default: store } = await import("../lib/store.js")

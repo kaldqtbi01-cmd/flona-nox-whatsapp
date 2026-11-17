@@ -12,6 +12,11 @@ function argsOf(m) { return String(m.text || '').trim().split(/\s+/).slice(1) }
 const handler = async (m, { usedPrefix = '.', command }) => {
   if (!store()) return m.reply('مخزن الميزات غير مهيأ بعد.')
   const args = argsOf(m)
+  if (command === 'حالة_الذكاء') {
+    const status = global.aiProviders?.status?.() || {}
+    const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
+    return m.reply(`حالة طبقة AI الموحدة\n${row('Groq', status.groq)}\n${row('Gemini', status.gemini)}\nالتوجيه: النص عبر Groq، والصور/المستندات عبر Gemini، مع fallback محدود.`)
+  }
   if (command === 'حالة_الميزات') {
     const data = store().read()
     return m.reply(`حالة الميزات المحلية\nالرسائل المحفوظة: ${Object.keys(data.messages).length}\nسجل التدقيق: ${data.audit.length}\nالموافقات المعلقة: ${listPending(store()).length}\nالتدفقات: ${Object.keys(data.workflows).length}`)
@@ -74,8 +79,8 @@ handler.all = async function (m) {
   await appendAudit(store(), { type: 'moderation.violation', actor: m.sender, chatId: m.chat, data: { violations: result.violations, fingerprint: fingerprint(m.text) } })
 }
 
-handler.help = ['حالة_الميزات', 'سياق', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
+handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'سياق', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
 handler.tags = ['tools', 'owner', 'group']
-handler.command = /^(حالة_الميزات|سياق|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
+handler.command = /^(حالة_الميزات|حالة_الذكاء|سياق|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
 
 export default handler
