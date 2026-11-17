@@ -22,6 +22,7 @@ import { Low, JSONFile } from "lowdb"
 import { sanitizeError } from "../lib/safe-error.js"
 import { initFeatureStore } from "../lib/feature-store.js"
 import { createAIProviders } from "../lib/ai-providers.js"
+import { createAICore } from "../lib/ai-core.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 
@@ -29,6 +30,7 @@ import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 process.chdir(ROOT_DIR)
 await import("../config.js")
 global.aiProviders = createAIProviders()
+global.aiCore = createAICore({ providers: global.aiProviders })
 
 const { makeWASocket: MakeSocket, protoType, serialize } = await import("../lib/simple.js")
 const { default: store } = await import("../lib/store.js")

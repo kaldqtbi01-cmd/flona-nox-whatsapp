@@ -15,7 +15,10 @@ const handler = async (m, { usedPrefix = '.', command }) => {
   if (command === 'حالة_الذكاء') {
     const status = global.aiProviders?.status?.() || {}
     const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
-    return m.reply(`حالة طبقة AI الموحدة\n${row('Groq', status.groq)}\n${row('Gemini', status.gemini)}\nالتوجيه: النص عبر Groq، والصور/المستندات عبر Gemini، مع fallback محدود.`)
+    const core = global.aiCore
+    const cache = core?.cache?.size?.() ?? 0
+    const tasks = core?.scheduler?.list?.()?.length ?? 0
+    return m.reply(`حالة طبقة AI الموحدة\n${row('Groq', status.groq)}\n${row('Gemini', status.gemini)}\nCache: ${cache}\nالمهام المجدولة: ${tasks}\nالتوجيه: النص عبر Groq، والصور/المستندات عبر Gemini، مع fallback محدود.`)
   }
   if (command === 'حالة_الميزات') {
     const data = store().read()
