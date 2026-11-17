@@ -48,6 +48,44 @@ const handler = async (m, { usedPrefix = '.', command }) => {
       return m.reply(`خطة الوكيل: ${plan.goal}\n${text}`.slice(0, 3500))
     } catch (error) { return m.reply(`تعذر تشغيل الوكيل: ${String(error.message || 'خطأ').slice(0, 180)}`) }
   }
+  if (command === 'معرفة') {
+    const engine = global.ultimateEngines?.knowledge
+    if (!engine) return m.reply('محرك المعرفة غير مهيأ بعد.')
+    const mode = args.shift() || 'عرض'
+    if (mode === 'حفظ') {
+      const title = args.shift(); const content = args.join(' ')
+      if (!title || !content) return m.reply(`استخدم: ${usedPrefix}معرفة حفظ <العنوان> <المحتوى>`)
+      await engine.add({ scope: m.chat, owner: m.sender, title, content })
+      return m.reply('تم حفظ المعلومة في قاعدة المعرفة الخاصة بك.')
+    }
+    const rows = engine.search({ scope: m.chat, owner: m.sender, query: mode === 'بحث' ? args.join(' ') : '', limit: 10 })
+    return m.reply(rows.length ? rows.map(item => `${item.id} | ${item.title}: ${item.content}`).join('\n') : 'لا توجد نتائج في قاعدة المعرفة.')
+  }
+  if (command === 'ملفي') {
+    const twin = global.ultimateEngines?.twin
+    if (!twin) return m.reply('محرك الملف الشخصي غير مهيأ بعد.')
+    if (args[0] === 'حفظ') {
+      const field = args[1]; const value = args.slice(2).join(' ')
+      if (!field || !value) return m.reply(`استخدم: ${usedPrefix}ملفي حفظ <الحقل> <القيمة>`)
+      await twin.set({ owner: m.sender, field, value }); return m.reply('تم تحديث ملفك الشخصي الذكي.')
+    }
+    const profile = twin.get(m.sender)
+    return m.reply(Object.keys(profile.fields || {}).length ? Object.entries(profile.fields).map(([key, value]) => `${key}: ${value}`).join('\n') : 'ملفك الشخصي الذكي فارغ.')
+  }
+  if (command === 'مجلس') {
+    const request = args.join(' ')
+    if (!request) return m.reply(`استخدم: ${usedPrefix}مجلس <السؤال>`)
+    try { const result = await global.ultimateEngines.council.deliberate({ request, context: JSON.stringify(reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: 6 })) }); return m.reply(`خلاصة المجلس:\n${result.synthesis}`) }
+    catch (error) { return m.reply(`تعذر تشغيل المجلس: ${String(error.message || 'خطأ').slice(0, 180)}`) }
+  }
+  if (command === 'توصية') {
+    try { const result = await global.ultimateEngines.automation.recommend({ scope: m.chat, owner: m.sender, context: JSON.stringify(reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: 8 })) }); return m.reply(`توصية قابلة للمراجعة:\n${result.text}`) }
+    catch (error) { return m.reply(`تعذر إنشاء التوصية: ${String(error.message || 'خطأ').slice(0, 180)}`) }
+  }
+  if (command === 'مركز_القيادة') {
+    const status = global.ultimateEngines?.status?.() || {}
+    return m.reply(`FLONA Command Center\nالذكريات: ${Object.keys(store().read().memories || {}).length}\nالمعرفة: ${status.knowledge || 0}\nالملفات الشخصية: ${status.profiles || 0}\nالتوصيات: ${status.recommendations || 0}\nالموافقات المعلقة: ${listPending(store()).length}`)
+  }
   if (command === 'حالة_الذكاء') {
     const status = global.aiProviders?.status?.() || {}
     const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
@@ -118,8 +156,8 @@ handler.all = async function (m) {
   await appendAudit(store(), { type: 'moderation.violation', actor: m.sender, chatId: m.chat, data: { violations: result.violations, fingerprint: fingerprint(m.text) } })
 }
 
-handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
+handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
 handler.tags = ['tools', 'owner', 'group']
-handler.command = /^(حالة_الميزات|حالة_الذكاء|سياق|إعادة_السياق|ذاكرة|وكيل|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
+handler.command = /^(حالة_الميزات|حالة_الذكاء|سياق|إعادة_السياق|ذاكرة|وكيل|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
 
 export default handler
