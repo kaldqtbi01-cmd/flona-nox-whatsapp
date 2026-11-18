@@ -26,6 +26,7 @@ async function overview() {
     ai: { groqConfigured: Boolean(process.env.GROQ_API_KEY), geminiConfigured: Boolean(process.env.GEMINI_API_KEY) },
     features: { messages: safeCount(feature.messages), memories: safeCount(feature.memories), approvals: safeCount(feature.approvals), workflows: safeCount(feature.workflows), audit: Array.isArray(feature.audit) ? feature.audit.length : 0 },
     nexus: db.nexus || { tasks: {}, events: [], personas: {} },
+    plugins: { count: (await fs.readdir(path.join(projectRoot, 'plugins')).catch(() => [])).filter(name => name.endsWith('.js')).length },
     security: { events: Array.isArray(feature.securityEvents) ? feature.securityEvents.length : 0 },
   }
 }
@@ -34,6 +35,9 @@ const server = http.createServer(async (req, res) => {
   if (!authorized(req)) return json(res, 401, { error: 'unauthorized' })
   const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`)
   if (url.pathname === '/api/overview') return json(res, 200, await overview())
+  if (url.pathname === '/api/nexus') { const data = await overview(); return json(res, 200, data.nexus) }
+  if (url.pathname === '/api/plugins') { const names = (await fs.readdir(path.join(projectRoot, 'plugins')).catch(() => [])).filter(name => name.endsWith('.js')).sort(); return json(res, 200, { count: names.length, names }) }
+  if (url.pathname === '/api/tasks') { const data = await overview(); return json(res, 200, { tasks: Object.values(data.nexus.tasks || {}) }) }
   if (url.pathname === '/api/health') return json(res, 200, { ok: true, at: Date.now() })
   if (url.pathname === '/manus-routes.json') return json(res, 200, { routes: [{ path: '/', title: 'FLONA MATRIX' }] })
   const requested = url.pathname === '/' ? '/index.html' : url.pathname
