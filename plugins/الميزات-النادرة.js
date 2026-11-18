@@ -112,7 +112,8 @@ const handler = async (m, { usedPrefix = '.', command }) => {
   if (command === 'حالة_النكسس') {
     const status = global.nexusCore?.status?.()
     if (!status) return m.reply('Nexus Core غير مهيأ بعد.')
-    return m.reply(`FLONA NEXUS\nالحالة: ${status.enabled ? 'مفعلة' : 'متوقفة'}\nالمهام: ${status.tasks}\nالأحداث: ${status.events}\nالشخصيات المستخدمة: ${status.personas}\nالوكلاء: ${status.roles}`)
+    const health = status.health || {}
+    return m.reply(`FLONA NEXUS\nالحالة: ${status.enabled ? 'مفعلة' : 'متوقفة'}\nالمهام: ${status.tasks}\nالأحداث: ${status.events}\nالشخصيات المستخدمة: ${status.personas}\nالوكلاء: ${status.roles}\nالاستقرار: ${health.successRate ?? 100}%\nالمهام النشطة: ${health.active ?? 0}\nفشل حديث: ${health.recentFailures ?? 0}\nتعافٍ ناجح: ${health.recovered ?? 0}`)
   }
   if (command === 'الشخصية') {
     const nexus = global.nexusCore

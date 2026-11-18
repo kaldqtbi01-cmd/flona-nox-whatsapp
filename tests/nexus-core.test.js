@@ -39,3 +39,24 @@ test('Nexus securityScan يمرر الفحص الأمني', () => {
   const { nexus } = setup()
   assert.equal(nexus.securityScan('bad').safe, false)
 })
+
+test('Nexus يعيد المحاولة مرة واحدة ثم يسجل التعافي', async () => {
+  const db = { data: {}, async write() {} }
+  const store = initFeatureStore(db)
+  let attempts = 0
+  const core = { ask: async () => {
+    attempts += 1
+    if (attempts === 1) throw new Error('HTTP 503')
+    return { provider: 'fake', text: 'تم التعافي' }
+  } }
+  const nexus = createNexusCore({ core, store })
+  const result = await nexus.runSwarm({ scope: 'chat', owner: 'u', request: 'مهمة قصيرة', roles: ['RESEARCH'] })
+  assert.equal(result.status, 'completed')
+  assert.equal(nexus.status().health.recovered, 1)
+})
+
+test('Nexus يوسع عدد الوكلاء تلقائيًا للمهمة الطويلة', async () => {
+  const { nexus } = setup()
+  const result = await nexus.runSwarm({ scope: 'chat', owner: 'u', request: 'x'.repeat(600), roles: ['RESEARCH', 'ANALYST', 'SECURITY', 'CREATIVE', 'CODER'] })
+  assert.equal(result.results.length, 4)
+})
