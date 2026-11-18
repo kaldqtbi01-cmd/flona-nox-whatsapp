@@ -17,13 +17,16 @@ const { proto, generateWAMessage, areJidsSameUser } = (await import('@whiskeysoc
 export async function all(m, chatUpdate) {
   if (m.isBaileys) return
   if (!m.message) return
-  if (!m.msg.fileSha256) return
+  if (!m.msg?.fileSha256) return
 
-  if (!(Buffer.from(m.msg.fileSha256).toString('base64') in global.db.data.sticker)) return
+  const stickers = global.db?.data?.sticker
+  if (!stickers || typeof stickers !== 'object') return
 
-  let hash = global.db.data.sticker[
-    Buffer.from(m.msg.fileSha256).toString('base64')
-  ]
+  const hashKey = Buffer.from(m.msg.fileSha256).toString('base64')
+  if (!(hashKey in stickers)) return
+
+  let hash = stickers[hashKey]
+  if (!hash || typeof hash !== 'object' || typeof hash.text !== 'string') return
 
   let { text, mentionedJid } = hash
 
