@@ -30,6 +30,8 @@ const SECTION_VIDEOS = Object.freeze({
   media: 'media.mp4',
   tools: 'tools.mp4'
 })
+const MENU_DEDUPE_WINDOW_MS = 1800
+const recentMenuRequests = new Map()
 
 async function ensureMenuVideo() {
   if (!fs.existsSync(MENU_DIR)) {
@@ -50,6 +52,20 @@ async function ensureCategoryVideo(tag) {
   const gifFile = gif ? path.join(MENU_GIF_DIR, gif) : ''
   if (gifFile && fs.existsSync(gifFile)) return fs.readFileSync(gifFile)
   return ensureMenuVideo()
+}
+
+function isDuplicateMenuRequest(m, tag) {
+  const now = Date.now()
+  const messageId = m.key?.id || m.id || m.text || tag
+  const key = `${m.chat}:${m.sender}:${messageId}:${tag}`
+  const previous = recentMenuRequests.get(key)
+  recentMenuRequests.set(key, now)
+
+  for (const [entry, at] of recentMenuRequests) {
+    if (now - at > MENU_DEDUPE_WINDOW_MS) recentMenuRequests.delete(entry)
+  }
+
+  return Number.isFinite(previous) && now - previous < MENU_DEDUPE_WINDOW_MS
 }
 
 function getActiveTags() {
@@ -126,6 +142,7 @@ let handler = async (m, { conn, usedPrefix, args }) => {
   try {
     const tag = normalizeMenuSection(args[0]?.trim())
     if (tag && MENU_SECTIONS[tag]) {
+      if (isDuplicateMenuRequest(m, tag)) return
       return await sendCategoryMenu(m, conn, tag, usedPrefix)
     }
 
