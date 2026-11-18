@@ -34,9 +34,15 @@ const state = global[SCHEDULER_KEY] ||= {
   date: '',
   timings: null,
   sent: new Set(),
+  attempted: new Set(),
   running: false,
   timer: null
 }
+
+const AZAN_SEND_DELAY_MS = 1500
+const mentionParticipants = () => process.env.FLONA_AZAN_MENTION === 'true'
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+state.attempted ||= new Set()
 
 function localNow() {
   return moment().tz(TIMEZONE)
@@ -91,14 +97,18 @@ async function sendPrayerReminder(conn, date, prayerName) {
   for (const groupId of getGroupIds(conn)) {
     // منع التكرار إذا كان البوت الرئيسي والفرعي موجودين في المجموعة نفسها.
     const sentKey = `${date}:${prayerName}:${groupId}`
-    if (state.sent.has(sentKey)) continue
+    if (state.sent.has(sentKey) || state.attempted.has(sentKey)) continue
+    // سجّل المحاولة قبل الطلب حتى لا تعيد كل دورة إرسال نفس الصلاة عند rate-overlimit.
+    state.attempted.add(sentKey)
 
     try {
       let metadata
-      try {
-        metadata = await conn.groupMetadata(groupId)
-      } catch (error) {
-        console.error(`[أذان صنعاء] تعذر جلب أعضاء المجموعة ${groupId}:`, error.message)
+      if (mentionParticipants()) {
+        try {
+          metadata = await conn.groupMetadata(groupId)
+        } catch (error) {
+          console.error(`[أذان صنعاء] تعذر جلب أعضاء المجموعة ${groupId}:`, error.message)
+        }
       }
 
       const selfJid = conn.user?.id
@@ -115,6 +125,7 @@ async function sendPrayerReminder(conn, date, prayerName) {
 
       await conn.sendMessage(groupId, { text, mentions })
       state.sent.add(sentKey)
+      await wait(AZAN_SEND_DELAY_MS)
     } catch (error) {
       console.error(`[أذان صنعاء] تعذر إرسال تذكير ${prayerName} إلى ${groupId}:`, error.message)
     }
@@ -130,7 +141,10 @@ async function runScheduler() {
   try {
     const now = localNow()
     const today = now.format('DD-MM-YYYY')
-    if (state.date !== today) state.sent.clear()
+    if (state.date !== today) {
+      state.sent.clear()
+      state.attempted.clear()
+    }
 
     const { date, timings } = await getPrayerTimes()
     const currentTime = now.format('HH:mm')
