@@ -16,19 +16,18 @@ const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
 const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
 const MENU_FILE = path.join(MENU_DIR, 'flona-menu.mp4')
-const MENU_GIF_DIR = path.join(process.cwd(), 'media', 'menu-gifs')
-const MENU_VIDEO_DIR = path.join(process.cwd(), 'media', 'menu-videos-720')
-const SECTION_VIDEOS = Object.freeze({
-  main: 'main.mp4',
-  owner: 'owner.mp4',
-  ai: 'ai.mp4',
-  anime: 'anime.mp4',
-  economy: 'economy.mp4',
-  games: 'games.mp4',
-  group: 'group.mp4',
-  download: 'download.mp4',
-  media: 'media.mp4',
-  tools: 'tools.mp4'
+const MENU_IMAGE_DIR = path.join(process.cwd(), 'media', 'menu-images-720')
+const SECTION_IMAGES = Object.freeze({
+  main: 'main.png',
+  owner: 'owner.png',
+  ai: 'ai.png',
+  anime: 'anime.png',
+  economy: 'economy.png',
+  games: 'games.png',
+  group: 'group.png',
+  download: 'download.png',
+  media: 'media.png',
+  tools: 'tools.png'
 })
 const MENU_DEDUPE_WINDOW_MS = 1800
 const recentMenuRequests = new Map()
@@ -44,14 +43,13 @@ async function ensureMenuVideo() {
   return fs.readFileSync(MENU_FILE)
 }
 
-async function ensureCategoryVideo(tag) {
-  const filename = SECTION_VIDEOS[tag]
-  const file = filename ? path.join(MENU_VIDEO_DIR, filename) : ''
+async function ensureCategoryImage(tag) {
+  const filename = SECTION_IMAGES[tag]
+  const file = filename ? path.join(MENU_IMAGE_DIR, filename) : ''
   if (file && fs.existsSync(file)) return fs.readFileSync(file)
-  const gif = SECTION_VIDEOS[tag]?.replace(/\.mp4$/i, '.gif')
-  const gifFile = gif ? path.join(MENU_GIF_DIR, gif) : ''
-  if (gifFile && fs.existsSync(gifFile)) return fs.readFileSync(gifFile)
-  return ensureMenuVideo()
+  const fallback = path.join(process.cwd(), 'media', 'flona-logo.jpg')
+  if (fs.existsSync(fallback)) return fs.readFileSync(fallback)
+  throw new Error(`Missing image for menu section: ${tag}`)
 }
 
 function isDuplicateMenuRequest(m, tag) {
@@ -93,9 +91,9 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
   })
 
   try {
-    const videoBuffer = await ensureCategoryVideo(tag)
+    const imageBuffer = await ensureCategoryImage(tag)
     const mediaMessage = await prepareWAMessageMedia(
-      { video: videoBuffer, gifPlayback: true },
+      { image: imageBuffer },
       { upload: conn.waUploadToServer }
     )
 
@@ -104,7 +102,7 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
       viewOnceMessage: {
         message: {
           interactiveMessage: {
-            header: { hasMediaAttachment: true, videoMessage: mediaMessage.videoMessage },
+            header: { hasMediaAttachment: true, imageMessage: mediaMessage.imageMessage },
             body: { text: txt },
             footer: { text: BRAND_NAME },
             nativeFlowMessage: {
