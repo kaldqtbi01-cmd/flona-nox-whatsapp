@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FLONA MATRIX</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar"><div><span class="eyebrow">FLONA NEXUS / MATRIX</span><h1>غرفة القيادة</h1><p id="updated">بانتظار بيانات النظام...</p></div><div class="orb" id="orb"><img src="/assets/flona-avatar.png" alt="هوية FLONA الرقمية"><span>F</span></div></header>
+    <section class="status-strip"><span class="dot" id="system-dot"></span><strong id="system-state">جاري الفحص</strong><span class="muted">بيانات محلية — لا تعرض مفاتيح API</span></section>
+    <section class="metrics" id="metrics"></section>
+    <section class="grid">
+      <article class="panel wide"><div class="panel-head"><h2>AI Command</h2><span class="tag" id="ai-state">—</span></div><div id="ai" class="rows"></div></article>
+      <article class="panel"><div class="panel-head"><h2>Agent Swarm</h2><span class="tag cyan">NEXUS</span></div><div id="nexus" class="rows"></div></article>
+      <article class="panel"><div class="panel-head"><h2>Security Center</h2><span class="tag amber">مراقبة</span></div><div id="security" class="rows"></div></article>
+      <article class="panel wide"><div class="panel-head"><h2>WhatsApp Runtime</h2><span class="tag green">محمي</span></div><div id="whatsapp" class="rows"></div></article>
+    </section>
+    <footer>FLONA MATRIX · لوحة محلية للمالك · التحديث كل 5 ثوانٍ</footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
