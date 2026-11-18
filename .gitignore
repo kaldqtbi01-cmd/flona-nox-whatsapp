@@ -9,3 +9,7 @@ data/whatsapp.lock
 data/whatsapp-qr.png
 data/whatsapp-status.json
 tmp/
+# Runtime data — keep the VPS copy, never commit user/chat records
+database.json
+yt-dlp
+yt-dlp.exe

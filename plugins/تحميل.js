@@ -1,66 +1,11 @@
 import { join } from 'path'
 import {
   existsSync, unlinkSync, mkdirSync,
-  readdirSync, statSync, chmodSync,
-  createWriteStream
+  readdirSync, statSync,
 } from 'fs'
 import { tmpdir } from 'os'
 import { spawn } from 'child_process'
-import fetch from 'node-fetch'
-import { pipeline } from 'stream/promises'
-
-// ══════════════════════════════════════════
-//  دالة تحميل yt-dlp تلقائي لو مش موجود
-// ══════════════════════════════════════════
-const ytDlpPath = join(process.cwd(), 'yt-dlp')
-
-async function ensureYtDlp() {
-
-  // ─── لو موجود بالفعل خلاص ──────────
-  if (existsSync(ytDlpPath)) {
-    return ytDlpPath
-  }
-
-  console.log('[yt-dlp] جاري التحميل التلقائي...')
-
-  // ─── تحديد نظام التشغيل ──────────────
-  let downloadUrl
-
-  if (process.platform === 'win32') {
-    downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
-  } else if (process.platform === 'darwin') {
-    downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos'
-  } else {
-    // Linux
-    downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux'
-  }
-
-  // ─── تحميل الملف ────────────────────
-  const response = await fetch(downloadUrl, {
-    redirect: 'follow',
-    headers: {
-      'User-Agent': 'Mozilla/5.0'
-    }
-  })
-
-  if (!response.ok) {
-    throw new Error('فشل تحميل yt-dlp: ' + response.status)
-  }
-
-  const dest = process.platform === 'win32'
-    ? ytDlpPath + '.exe'
-    : ytDlpPath
-
-  await pipeline(response.body, createWriteStream(dest))
-
-  // ─── إعطاء صلاحية التشغيل (Linux/Mac) ──
-  if (process.platform !== 'win32') {
-    chmodSync(dest, 0o755)
-  }
-
-  console.log('[yt-dlp] ✅ تم التثبيت بنجاح!')
-  return dest
-}
+import { ensureYtDlp } from '../lib/yt-dlp.js'
 
 // ══════════════════════════════════════════
 //  الأمر الرئيسي
@@ -143,7 +88,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     '--max-filesize', '60M',
     '--no-playlist',
     '--no-warnings',
-    '--no-check-certificates',
     '--socket-timeout', '30',
     '--retries', '3',
     '--user-agent',

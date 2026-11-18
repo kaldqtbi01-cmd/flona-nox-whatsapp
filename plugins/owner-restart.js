@@ -13,19 +13,11 @@ https://whatsapp.com/channel/0029VbC5LLx6GcGDXZUmHP0y
 */
 
 let handler = async (m, { conn, usedPrefix, command, isROwner }) => {
-	const allowedUsers = [
-'963949597160@s.whatsapp.net',
-'201097786373@s.whatsapp.net',
-'963949597160@s.whatsapp.net'
-]
-
-if (!allowedUsers.includes(m.sender)) {
-  return m.reply('❌ الأمر ده مسموح للمطور بس.');
-}
+	if (!isROwner) return m.reply('❌ الأمر ده مسموح للمطور بس.')
 
   try {
     await m.react('🎭')
-    m.reply(`🌌 *جاري إعادة تشغيل البوت ${botname} ❤️‍🩹*\n> ► انتظر شوية لحد ما يرجع يشتغل تمام.`);
+	    await m.reply('🌌 *جاري إعادة تشغيل بوت FLONA ❤️‍🩹*\n> ► انتظر شوية لحد ما يرجع يشتغل تمام.')
     await m.react('✔️')
     setTimeout(() => {
       if (process.send) {

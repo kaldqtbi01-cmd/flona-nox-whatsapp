@@ -12,14 +12,14 @@ https://whatsapp.com/channel/0029VbC5LLx6GcGDXZUmHP0y
 ⚡ https://github.com/SHANKS-CODE-1/CODE
 */
 
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import ffmpegPath from 'ffmpeg-static'
+import { getFfmpegPath } from '../lib/atlas-local-converters.js'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 let handler = async (m, { conn }) => {
     let q = m.quoted
@@ -36,18 +36,18 @@ let handler = async (m, { conn }) => {
     await conn.sendMessage(m.chat, { react: { text: '🎤', key: m.key } })
     await m.reply('⏳ جاري تحويل الملف لفويس بجودة عالية...')
 
+    let inputPath = ''
+    let outputPath = ''
     try {
         let media = await q.download()
         let ext = isVideo ? 'mp4' : (mime.includes('ogg') ? 'ogg' : 'mp3')
-        let inputPath = join(tmpdir(), `voice_in_${Date.now()}.${ext}`)
-        let outputPath = join(tmpdir(), `voice_out_${Date.now()}.ogg`)
+        const ffmpegPath = await getFfmpegPath()
+        inputPath = join(tmpdir(), `flona_voice_in_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`)
+        outputPath = join(tmpdir(), `flona_voice_out_${Date.now()}_${Math.random().toString(36).slice(2)}.ogg`)
 
         writeFileSync(inputPath, media)
 
-        
-        let cmd = `"${ffmpegPath}" -i "${inputPath}" -c:a libopus -b:a 64k -ac 2 -ar 48000 -vbr on -compression_level 0 -application audio -frame_duration 20 -f opus "${outputPath}" -y`
-
-        await execAsync(cmd, { timeout: 60000 })
+        await execFileAsync(ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', inputPath, '-t', '300', '-c:a', 'libopus', '-b:a', '64k', '-ac', '2', '-ar', '48000', '-vbr', 'on', '-compression_level', '0', '-application', 'audio', '-frame_duration', '20', '-f', 'opus', outputPath], { timeout: 60000 })
 
         if (!existsSync(outputPath)) throw new Error('فشل التحويل')
 
@@ -55,9 +55,8 @@ let handler = async (m, { conn }) => {
 
         
         if (buffer.length > 1024 * 1024) {
-            let midPath = join(tmpdir(), `voice_mid_${Date.now()}.ogg`)
-            let cmd2 = `"${ffmpegPath}" -i "${inputPath}" -c:a libopus -b:a 32k -ac 1 -ar 24000 -vbr on -compression_level 3 -application audio -frame_duration 40 -f opus "${midPath}" -y`
-            await execAsync(cmd2, { timeout: 60000 })
+            let midPath = join(tmpdir(), `flona_voice_mid_${Date.now()}_${Math.random().toString(36).slice(2)}.ogg`)
+            await execFileAsync(ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', inputPath, '-t', '300', '-c:a', 'libopus', '-b:a', '32k', '-ac', '1', '-ar', '24000', '-vbr', 'on', '-compression_level', '3', '-application', 'audio', '-frame_duration', '40', '-f', 'opus', midPath], { timeout: 60000 })
 
             if (existsSync(midPath)) {
                 buffer = readFileSync(midPath)
@@ -75,13 +74,13 @@ let handler = async (m, { conn }) => {
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
 
         
-        try { unlinkSync(inputPath) } catch {}
-        try { unlinkSync(outputPath) } catch {}
-
     } catch (e) {
         console.error(e)
         await m.reply('❌ فشل التحويل\n⚡ تأكد من تثبيت ffmpeg')
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } })
+    } finally {
+        try { if (inputPath && existsSync(inputPath)) unlinkSync(inputPath) } catch {}
+        try { if (outputPath && existsSync(outputPath)) unlinkSync(outputPath) } catch {}
     }
 }
 
