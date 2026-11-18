@@ -17,7 +17,7 @@ const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
 const MENU_FILE = path.join(MENU_DIR, 'flona-menu.mp4')
 const MENU_GIF_DIR = path.join(process.cwd(), 'media', 'menu-gifs')
-const MENU_VIDEO_DIR = path.join(process.cwd(), 'media', 'menu-videos')
+const MENU_VIDEO_DIR = path.join(process.cwd(), 'media', 'menu-videos-720')
 const SECTION_VIDEOS = Object.freeze({
   main: 'main.mp4',
   owner: 'owner.mp4',
@@ -56,8 +56,9 @@ async function ensureCategoryVideo(tag) {
 
 function isDuplicateMenuRequest(m, tag) {
   const now = Date.now()
-  const messageId = m.key?.id || m.id || m.text || tag
-  const key = `${m.chat}:${m.sender}:${messageId}:${tag}`
+  // Native-flow responses can arrive as separate WhatsApp events with
+  // different message IDs. Deduplicate by the actual action, not the event ID.
+  const key = `${m.chat}:${m.sender}:${tag}`
   const previous = recentMenuRequests.get(key)
   recentMenuRequests.set(key, now)
 
