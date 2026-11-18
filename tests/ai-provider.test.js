@@ -41,6 +41,7 @@ test('يوجه الصورة إلى Gemini', async () => {
   assert.equal(result.provider, 'gemini')
   assert.equal(result.text, 'تحليل الصورة')
   assert.match(calls[0].url, /generativelanguage\.googleapis\.com/)
+  assert.match(calls[0].url, /\/v1\/models\/gemini-2\.5-flash:generateContent/)
 })
 
 test('يستخدم fallback عند فشل Groq', async () => {
