@@ -46,3 +46,22 @@ test('AI Core يضيف cache وusage وhealth حول المزود', async () => 
   assert.equal(core.usage.summary().groq.requests, 1)
   assert.equal(core.health.isHealthy('groq'), true)
 })
+
+test('AI Core يدمج الطلبات المتطابقة ويحد التزامن العالمي', async () => {
+  let calls = 0; let active = 0; let peak = 0
+  const providers = { ask: async () => {
+    calls++; active++; peak = Math.max(peak, active)
+    await new Promise(resolve => setTimeout(resolve, 5))
+    active--; return { provider: 'groq', text: 'ok' }
+  } }
+  const core = createAICore({ providers, maxConcurrent: 2 })
+  await Promise.all([
+    core.ask({ task: 'chat', input: 'same' }),
+    core.ask({ task: 'chat', input: 'same' }),
+    core.ask({ task: 'chat', input: 'one' }),
+    core.ask({ task: 'chat', input: 'two' }),
+  ])
+  assert.equal(calls, 3)
+  assert.equal(peak, 2)
+  assert.equal(core.limiter.stats().active, 0)
+})
