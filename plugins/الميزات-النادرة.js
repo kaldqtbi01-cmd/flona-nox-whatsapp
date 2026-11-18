@@ -86,6 +86,27 @@ const handler = async (m, { usedPrefix = '.', command }) => {
     const status = global.ultimateEngines?.status?.() || {}
     return m.reply(`FLONA Command Center\nالذكريات: ${Object.keys(store().read().memories || {}).length}\nالمعرفة: ${status.knowledge || 0}\nالملفات الشخصية: ${status.profiles || 0}\nالتوصيات: ${status.recommendations || 0}\nالموافقات المعلقة: ${listPending(store()).length}`)
   }
+  if (command === 'صحة_النظام') {
+    const health = global.systemHealth?.snapshot?.()
+    if (!health) return m.reply('مراقب الصحة غير مهيأ بعد.')
+    return m.reply(`صحة FLONA\nGroq: ${health.providers.groq?.configured ? 'مضبوط' : 'غير مضبوط'}\nGemini: ${health.providers.gemini?.configured ? 'مضبوط' : 'غير مضبوط'}\nCache: ${health.cacheEntries}\nالمهام: ${health.scheduledTasks}\nالمحركات: ${health.engines ? 'جاهزة' : 'غير جاهزة'}`)
+  }
+  if (command === 'أمن') {
+    if (!owner(m)) return m.reply('هذا الأمر للمالك فقط.')
+    const summary = global.securityCenter?.summary?.(m.chat) || { total: 0, flagged: 0 }
+    return m.reply(`مركز استخبارات الحماية\nالأحداث: ${summary.total}\nالمحاولات المصنفة: ${summary.flagged}\nالوضع: تسجيل وتحليل فقط، بدون عقوبة تلقائية.`)
+  }
+  if (command === 'أتمتة') {
+    const control = global.automationControl
+    if (!control) return m.reply('مركز الأتمتة غير مهيأ بعد.')
+    const mode = args.shift() || 'عرض'
+    if (mode === 'اقتراح') {
+      try { const item = await control.suggest({ scope: m.chat, owner: m.sender, context: JSON.stringify(reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: 6 })) }); return m.reply(`تم إنشاء أتمتة للمراجعة: ${item.id}\nالحالة: ${item.status}\n${item.description}`) }
+      catch (error) { return m.reply(`تعذر إنشاء الأتمتة: ${String(error.message || 'خطأ').slice(0, 180)}`) }
+    }
+    const rows = control.list({ scope: m.chat, owner: m.sender })
+    return m.reply(rows.length ? rows.map(item => `${item.id} | ${item.status} | ${item.title}`).join('\n') : 'لا توجد أتمتة محفوظة.')
+  }
   if (command === 'حالة_الذكاء') {
     const status = global.aiProviders?.status?.() || {}
     const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
@@ -156,8 +177,8 @@ handler.all = async function (m) {
   await appendAudit(store(), { type: 'moderation.violation', actor: m.sender, chatId: m.chat, data: { violations: result.violations, fingerprint: fingerprint(m.text) } })
 }
 
-handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
+handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'صحة_النظام', 'أمن', 'أتمتة', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
 handler.tags = ['tools', 'owner', 'group']
-handler.command = /^(حالة_الميزات|حالة_الذكاء|سياق|إعادة_السياق|ذاكرة|وكيل|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
+handler.command = /^(حالة_الميزات|حالة_الذكاء|صحة_النظام|أمن|أتمتة|سياق|إعادة_السياق|ذاكرة|وكيل|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
 
 export default handler
