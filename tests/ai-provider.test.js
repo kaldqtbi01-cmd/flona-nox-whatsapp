@@ -41,7 +41,7 @@ test('يوجه الصورة إلى Gemini', async () => {
   assert.equal(result.provider, 'gemini')
   assert.equal(result.text, 'تحليل الصورة')
   assert.match(calls[0].url, /generativelanguage\.googleapis\.com/)
-  assert.match(calls[0].url, /\/v1\/models\/gemini-2\.5-flash:generateContent/)
+  assert.match(calls[0].url, /\/v1\/models\/gemini-3\.8-flash:generateContent/)
 })
 
 test('يستخدم fallback عند فشل Groq', async () => {
@@ -75,7 +75,7 @@ test('يتجاوز نموذج Gemini الذي يعيد 404 إلى نموذج/إ�
   const result = await api.ask({ task: 'chat', input: 'اختبار نموذج بديل' })
   assert.equal(result.provider, 'gemini')
   assert.equal(result.text, 'Gemini fallback')
-  assert.ok(calls.some(url => url.includes('/v1beta/models/gemini-2.5-flash')))
+  assert.ok(calls.some(url => url.includes('/v1beta/models/gemini-3.8-flash')))
 })
 
 test('ينقح أخطاء المزود ولا يعيد المفتاح', async () => {
