@@ -46,6 +46,16 @@ test('commands from similar tags merge and duplicate labels appear once', () => 
   assert.deepEqual(getMenuCategories(plugins), ['games', 'group'])
 })
 
+test('the same command label is kept in only one section globally', () => {
+  const plugins = {
+    'first.js': { tags: ['tools'], help: ['status', 'status'] },
+    'second.js': { tags: ['main'], help: ['STATUS'] }
+  }
+
+  assert.deepEqual(getMenuCommands(plugins, 'main'), [])
+  assert.deepEqual(getMenuCommands(plugins, 'tools'), ['status'])
+})
+
 test('multi-purpose plugin commands route to one appropriate section each', () => {
   const plugins = {
     'yusef-features.js': {
@@ -75,7 +85,7 @@ test('all newly exposed command labels have an explicit, complete section assign
     Object.keys(MENU_HELP_OVERRIDES).map(filename => [filename, { help: [] }])
   )
   const expected = {
-    main: 14,
+    main: 13,
     owner: 10,
     ai: 0,
     anime: 3,
@@ -91,6 +101,6 @@ test('all newly exposed command labels have an explicit, complete section assign
   )
 
   assert.deepEqual(actual, expected)
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 62)
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 61)
   assert.equal(Object.hasOwn(MENU_HELP_OVERRIDES, 'Human ai.js'), false)
 })
