@@ -85,7 +85,7 @@ test('يتجاوز حد Gemini 429 إلى نموذج أخف', async () => {
     fetchImpl: async (url) => {
       calls.push(url)
       const geminiCalls = calls.filter(item => item.includes('generativelanguage')).length
-      if (geminiCalls <= 4) return response({ error: { message: 'rate limit' } }, 429)
+      if (geminiCalls <= 2) return response({ error: { message: 'rate limit' } }, 429)
       return response({ candidates: [{ content: { parts: [{ text: 'Lite fallback' }] } }] })
     },
   })
