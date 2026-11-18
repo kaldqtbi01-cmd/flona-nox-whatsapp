@@ -78,6 +78,23 @@ test('يتجاوز نموذج Gemini الذي يعيد 404 إلى نموذج/إ�
   assert.ok(calls.some(url => url.includes('/v1beta/models/gemini-3.8-flash')))
 })
 
+test('يتجاوز حد Gemini 429 إلى نموذج أخف', async () => {
+  const calls = []
+  const api = createAIProviders({
+    env: { GROQ_API_KEY: '', GEMINI_API_KEY: 'gemini-secret' },
+    fetchImpl: async (url) => {
+      calls.push(url)
+      const geminiCalls = calls.filter(item => item.includes('generativelanguage')).length
+      if (geminiCalls <= 4) return response({ error: { message: 'rate limit' } }, 429)
+      return response({ candidates: [{ content: { parts: [{ text: 'Lite fallback' }] } }] })
+    },
+  })
+  const result = await api.ask({ task: 'vision', input: 'اختبار حد المعدل', fallback: false })
+  assert.equal(result.provider, 'gemini')
+  assert.equal(result.text, 'Lite fallback')
+  assert.ok(calls.some(url => url.includes('gemini-3.5-flash-lite')))
+})
+
 test('ينقح أخطاء المزود ولا يعيد المفتاح', async () => {
   const secret = 'groq-secret-value'
   const api = createAIProviders({
