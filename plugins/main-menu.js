@@ -16,6 +16,19 @@ const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
 const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
 const MENU_FILE = path.join(MENU_DIR, 'flona-menu.mp4')
+const MENU_GIF_DIR = path.join(process.cwd(), 'media', 'menu-gifs')
+const SECTION_GIFS = Object.freeze({
+  main: 'main.gif',
+  owner: 'owner.gif',
+  ai: 'ai.gif',
+  anime: 'anime.gif',
+  economy: 'economy.gif',
+  games: 'games.gif',
+  group: 'group.gif',
+  download: 'download.gif',
+  media: 'media.gif',
+  tools: 'tools.gif'
+})
 
 async function ensureMenuVideo() {
   if (!fs.existsSync(MENU_DIR)) {
@@ -26,6 +39,13 @@ async function ensureMenuVideo() {
     fs.writeFileSync(MENU_FILE, Buffer.from(res.data))
   }
   return fs.readFileSync(MENU_FILE)
+}
+
+async function ensureCategoryGif(tag) {
+  const filename = SECTION_GIFS[tag]
+  const file = filename ? path.join(MENU_GIF_DIR, filename) : ''
+  if (file && fs.existsSync(file)) return fs.readFileSync(file)
+  return ensureMenuVideo()
 }
 
 function getActiveTags() {
@@ -52,7 +72,7 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
   })
 
   try {
-    const videoBuffer = await ensureMenuVideo()
+    const videoBuffer = await ensureCategoryGif(tag)
     const mediaMessage = await prepareWAMessageMedia(
       { video: videoBuffer, gifPlayback: true },
       { upload: conn.waUploadToServer }
