@@ -4,6 +4,8 @@ import { createDraft, listPending, transition, editDraft } from '../lib/approval
 import { detectModeration, fingerprint } from '../lib/moderation-policy.js'
 import { normalizeMessage } from '../lib/message-contract.js'
 import { listMemories, searchMemories, remember, forgetMemory, reconstructContext } from '../lib/agent-memory.js'
+import { scanPluginIntegrity } from '../lib/nexus-os.js'
+import path from 'node:path'
 
 function store() { return global.featureStore }
 function owner(m) { return Boolean(m.isROwner || m.isOwner || m.fromMe) }
@@ -128,6 +130,28 @@ const handler = async (m, { usedPrefix = '.', command }) => {
       return m.reply(`مهمة السرب ${result.taskId}\n${result.summary}\nالوكلاء: ${result.results.map(item => item.role).join('، ')}`.slice(0, 3500))
     } catch (error) { return m.reply(`تعذر تشغيل السرب: ${String(error.message || 'خطأ').slice(0, 180)}`) }
   }
+  if (command === 'مهمة_نكسس') {
+    const request = args.join(' ')
+    if (!request) return m.reply(`استخدم: ${usedPrefix}مهمة_نكسس <المهمة>`)
+    try { const result = await global.nexusOS.submit({ scope: m.chat, owner: m.sender, request, context: JSON.stringify(reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: 6 })) }); return m.reply(`تمت المهمة ${result.id}\n${result.summary}`.slice(0, 3500)) }
+    catch (error) { return m.reply(`تعذر تنفيذ المهمة: ${String(error.message || 'خطأ').slice(0, 180)}`) }
+  }
+  if (command === 'حالة_التشغيل') {
+    const state = global.nexusOS?.health?.()
+    return m.reply(state ? `Autonomous OS\nالمهام: ${state.tasks.length}\nأنواع الأحداث: ${state.eventTypes.length}\nحالات الاسترداد: ${Object.keys(state.recovery).length}` : 'Autonomous OS غير مهيأ بعد.')
+  }
+  if (command === 'أحداث_النكسس') {
+    if (!owner(m)) return m.reply('هذا الأمر للمالك فقط.')
+    const rows = global.nexusCore?.listEvents?.(Number(args[0]) || 10) || []
+    return m.reply(rows.length ? rows.map(row => `${new Date(row.at).toISOString()} | ${row.type} | ${row.taskId || '-'}`).join('\n') : 'لا توجد أحداث Nexus.')
+  }
+  if (command === 'فحص_الإضافات') {
+    if (!owner(m)) return m.reply('هذا الأمر للمالك فقط.')
+    const previous = store().read().nexusIntegrity || {}
+    const result = await scanPluginIntegrity(path.resolve('plugins'), previous)
+    await store().mutate(data => { data.nexusIntegrity = result.entries })
+    return m.reply(`فحص الإضافات\nالملفات: ${Object.keys(result.entries).length}\nالمتغيرة: ${result.changed.length}\nالمفقودة: ${result.missing.length}\nالحالة: ${result.changed.length || result.missing.length ? 'تحتاج مراجعة' : 'سليمة'}`)
+  }
   if (command === 'حالة_الذكاء') {
     const status = global.aiProviders?.status?.() || {}
     const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
@@ -198,8 +222,8 @@ handler.all = async function (m) {
   await appendAudit(store(), { type: 'moderation.violation', actor: m.sender, chatId: m.chat, data: { violations: result.violations, fingerprint: fingerprint(m.text) } })
 }
 
-handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'حالة_النكسس', 'صحة_النظام', 'أمن', 'أتمتة', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'سرب', 'الشخصية', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
+handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'حالة_النكسس', 'حالة_التشغيل', 'صحة_النظام', 'أمن', 'أتمتة', 'فحص_الإضافات', 'أحداث_النكسس', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'سرب', 'مهمة_نكسس', 'الشخصية', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
 handler.tags = ['tools', 'owner', 'group']
-handler.command = /^(حالة_الميزات|حالة_الذكاء|حالة_النكسس|صحة_النظام|أمن|أتمتة|سياق|إعادة_السياق|ذاكرة|وكيل|سرب|الشخصية|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
+handler.command = /^(حالة_الميزات|حالة_الذكاء|حالة_النكسس|حالة_التشغيل|صحة_النظام|أمن|أتمتة|فحص_الإضافات|أحداث_النكسس|سياق|إعادة_السياق|ذاكرة|وكيل|سرب|مهمة_نكسس|الشخصية|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
 
 export default handler
