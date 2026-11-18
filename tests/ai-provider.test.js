@@ -59,6 +59,25 @@ test('يستخدم fallback عند فشل Groq', async () => {
   assert.equal(calls.length, 3) // Groq + retry واحد ثم Gemini fallback
 })
 
+test('يتجاوز نموذج Gemini الذي يعيد 404 إلى نموذج/إصدار بديل', async () => {
+  const calls = []
+  const api = createAIProviders({
+    env: { GROQ_API_KEY: 'groq-secret', GEMINI_API_KEY: 'gemini-secret' },
+    fetchImpl: async (url) => {
+      calls.push(url)
+      if (url.includes('groq')) return response({ error: { message: 'temporary' } }, 503)
+      if (calls.filter(item => item.includes('generativelanguage')).length === 1) {
+        return response({ error: { message: 'model not found' } }, 404)
+      }
+      return response({ candidates: [{ content: { parts: [{ text: 'Gemini fallback' }] } }] })
+    },
+  })
+  const result = await api.ask({ task: 'chat', input: 'اختبار نموذج بديل' })
+  assert.equal(result.provider, 'gemini')
+  assert.equal(result.text, 'Gemini fallback')
+  assert.ok(calls.some(url => url.includes('/v1beta/models/gemini-2.5-flash')))
+})
+
 test('ينقح أخطاء المزود ولا يعيد المفتاح', async () => {
   const secret = 'groq-secret-value'
   const api = createAIProviders({
