@@ -29,7 +29,7 @@ const SECTION_IMAGES = Object.freeze({
   media: 'media.png',
   tools: 'tools.png'
 })
-const MENU_DEDUPE_WINDOW_MS = 1800
+const MENU_DEDUPE_WINDOW_MS = 10 * 1000
 const recentMenuRequests = new Map()
 
 async function ensureMenuVideo() {

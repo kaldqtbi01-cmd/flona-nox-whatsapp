@@ -23,6 +23,26 @@ const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function (
 }, ms))
 
 if (!global._bannedMsgCD) global._bannedMsgCD = {}
+const processedIncomingMessages = new Map()
+const INCOMING_DEDUPE_WINDOW_MS = 60 * 1000
+
+function isDuplicateIncomingMessage(message) {
+    const messageId = message?.key?.id || message?.id
+    if (!messageId) return false
+
+    const now = Date.now()
+    const chatId = message.key?.remoteJid || message.chat || ''
+    const key = `${chatId}:${messageId}`
+    const previous = processedIncomingMessages.get(key)
+
+    for (const [entry, at] of processedIncomingMessages) {
+        if (now - at > INCOMING_DEDUPE_WINDOW_MS) processedIncomingMessages.delete(entry)
+    }
+
+    if (previous && now - previous < INCOMING_DEDUPE_WINDOW_MS) return true
+    processedIncomingMessages.set(key, now)
+    return false
+}
 
 function alreadyNotified(key, cooldownMs = 10 * 60 * 1000) {
     const now = Date.now()
@@ -60,6 +80,7 @@ export async function handler(chatUpdate) {
 
     let m = chatUpdate.messages[chatUpdate.messages.length - 1]
     if (!m) return
+    if (isDuplicateIncomingMessage(m)) return
     if (global.db.data == null) await global.loadDatabase()
 
     try {
