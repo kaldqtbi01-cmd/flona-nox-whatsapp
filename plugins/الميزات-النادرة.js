@@ -159,7 +159,8 @@ const handler = async (m, { usedPrefix = '.', command }) => {
     const core = global.aiCore
     const cache = core?.cache?.size?.() ?? 0
     const tasks = core?.scheduler?.list?.()?.length ?? 0
-    return m.reply(`حالة طبقة AI الموحدة\n${row('Groq', status.groq)}\n${row('Gemini', status.gemini)}\nCache: ${cache}\nالمهام المجدولة: ${tasks}\nالتوجيه: النص عبر Groq، والصور/المستندات عبر Gemini، مع fallback محدود.`)
+    const queue = core?.limiter?.stats?.() || {}
+    return m.reply(`حالة طبقة AI الموحدة\n${row('Groq', status.groq)}\n${row('Gemini', status.gemini)}\nCache: ${cache}\nطابور AI: ${queue.active ?? 0} نشط / ${queue.queued ?? 0} منتظر\nحد التزامن: ${queue.maxConcurrent ?? 2}\nالمهام المجدولة: ${tasks}\nالتوجيه: النص عبر Groq، والصور/المستندات عبر Gemini، مع fallback محدود.`)
   }
   if (command === 'حالة_الميزات') {
     const data = store().read()
