@@ -17,17 +17,18 @@ const BRAND_DEV = global.botDev || '𝐅𝐋𝐎𝐍𝐀'
 const MENU_DIR = path.join(process.cwd(), 'src', 'menu')
 const MENU_FILE = path.join(MENU_DIR, 'flona-menu.mp4')
 const MENU_GIF_DIR = path.join(process.cwd(), 'media', 'menu-gifs')
-const SECTION_GIFS = Object.freeze({
-  main: 'main.gif',
-  owner: 'owner.gif',
-  ai: 'ai.gif',
-  anime: 'anime.gif',
-  economy: 'economy.gif',
-  games: 'games.gif',
-  group: 'group.gif',
-  download: 'download.gif',
-  media: 'media.gif',
-  tools: 'tools.gif'
+const MENU_VIDEO_DIR = path.join(process.cwd(), 'media', 'menu-videos')
+const SECTION_VIDEOS = Object.freeze({
+  main: 'main.mp4',
+  owner: 'owner.mp4',
+  ai: 'ai.mp4',
+  anime: 'anime.mp4',
+  economy: 'economy.mp4',
+  games: 'games.mp4',
+  group: 'group.mp4',
+  download: 'download.mp4',
+  media: 'media.mp4',
+  tools: 'tools.mp4'
 })
 
 async function ensureMenuVideo() {
@@ -41,10 +42,13 @@ async function ensureMenuVideo() {
   return fs.readFileSync(MENU_FILE)
 }
 
-async function ensureCategoryGif(tag) {
-  const filename = SECTION_GIFS[tag]
-  const file = filename ? path.join(MENU_GIF_DIR, filename) : ''
+async function ensureCategoryVideo(tag) {
+  const filename = SECTION_VIDEOS[tag]
+  const file = filename ? path.join(MENU_VIDEO_DIR, filename) : ''
   if (file && fs.existsSync(file)) return fs.readFileSync(file)
+  const gif = SECTION_VIDEOS[tag]?.replace(/\.mp4$/i, '.gif')
+  const gifFile = gif ? path.join(MENU_GIF_DIR, gif) : ''
+  if (gifFile && fs.existsSync(gifFile)) return fs.readFileSync(gifFile)
   return ensureMenuVideo()
 }
 
@@ -72,7 +76,7 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
   })
 
   try {
-    const videoBuffer = await ensureCategoryGif(tag)
+    const videoBuffer = await ensureCategoryVideo(tag)
     const mediaMessage = await prepareWAMessageMedia(
       { video: videoBuffer, gifPlayback: true },
       { upload: conn.waUploadToServer }
