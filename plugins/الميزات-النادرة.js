@@ -107,6 +107,27 @@ const handler = async (m, { usedPrefix = '.', command }) => {
     const rows = control.list({ scope: m.chat, owner: m.sender })
     return m.reply(rows.length ? rows.map(item => `${item.id} | ${item.status} | ${item.title}`).join('\n') : 'لا توجد أتمتة محفوظة.')
   }
+  if (command === 'حالة_النكسس') {
+    const status = global.nexusCore?.status?.()
+    if (!status) return m.reply('Nexus Core غير مهيأ بعد.')
+    return m.reply(`FLONA NEXUS\nالحالة: ${status.enabled ? 'مفعلة' : 'متوقفة'}\nالمهام: ${status.tasks}\nالأحداث: ${status.events}\nالشخصيات المستخدمة: ${status.personas}\nالوكلاء: ${status.roles}`)
+  }
+  if (command === 'الشخصية') {
+    const nexus = global.nexusCore
+    if (!nexus) return m.reply('Nexus Core غير مهيأ بعد.')
+    if (args[0] === 'اختيار' && args[1]) { await nexus.setPersona(m.sender, args[1]); return m.reply(`تم اختيار الشخصية: ${nexus.persona(args[1]).name} — ${nexus.persona(args[1]).role}`) }
+    const current = store().read().nexus?.personas?.[m.sender]?.persona || 'FLONA'
+    return m.reply(`الشخصية الحالية: ${current}\nالمتاح: FLONA, NOVA, ATHENA, SENTINEL, CREATOR, ORACLE\nاستخدم: ${usedPrefix}الشخصية اختيار <الاسم>`)
+  }
+  if (command === 'سرب') {
+    const request = args.join(' ')
+    if (!request) return m.reply(`استخدم: ${usedPrefix}سرب <المهمة>`)
+    try {
+      const context = reconstructContext(store(), { chatId: m.chat, owner: m.sender, limit: 6 })
+      const result = await global.nexusCore.runSwarm({ scope: m.chat, owner: m.sender, request, context: JSON.stringify(context) })
+      return m.reply(`مهمة السرب ${result.taskId}\n${result.summary}\nالوكلاء: ${result.results.map(item => item.role).join('، ')}`.slice(0, 3500))
+    } catch (error) { return m.reply(`تعذر تشغيل السرب: ${String(error.message || 'خطأ').slice(0, 180)}`) }
+  }
   if (command === 'حالة_الذكاء') {
     const status = global.aiProviders?.status?.() || {}
     const row = (name, item) => `${name}: ${item?.configured ? 'مضبوط' : 'غير مضبوط'} (${item?.model || 'بدون نموذج'})`
@@ -177,8 +198,8 @@ handler.all = async function (m) {
   await appendAudit(store(), { type: 'moderation.violation', actor: m.sender, chatId: m.chat, data: { violations: result.violations, fingerprint: fingerprint(m.text) } })
 }
 
-handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'صحة_النظام', 'أمن', 'أتمتة', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
+handler.help = ['حالة_الميزات', 'حالة_الذكاء', 'حالة_النكسس', 'صحة_النظام', 'أمن', 'أتمتة', 'سياق', 'إعادة_السياق', 'ذاكرة', 'وكيل', 'سرب', 'الشخصية', 'معرفة', 'ملفي', 'مجلس', 'توصية', 'مركز_القيادة', 'سجل_التدقيق', 'مراجعة', 'موافقة', 'رفض', 'تعديل_الرد', 'دفاع']
 handler.tags = ['tools', 'owner', 'group']
-handler.command = /^(حالة_الميزات|حالة_الذكاء|صحة_النظام|أمن|أتمتة|سياق|إعادة_السياق|ذاكرة|وكيل|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
+handler.command = /^(حالة_الميزات|حالة_الذكاء|حالة_النكسس|صحة_النظام|أمن|أتمتة|سياق|إعادة_السياق|ذاكرة|وكيل|سرب|الشخصية|معرفة|ملفي|مجلس|توصية|مركز_القيادة|سجل_التدقيق|مراجعة|موافقة|رفض|تعديل_الرد|دفاع)$/i
 
 export default handler

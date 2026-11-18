@@ -26,6 +26,7 @@ import { createAICore } from "../lib/ai-core.js"
 import { createAgentEngine } from "../lib/agent-memory.js"
 import { createUltimateEngines } from "../lib/ultimate-engines.js"
 import { createSecurityCenter, createAutomationControl, createSystemHealth } from "../lib/security-automation.js"
+import { createNexusCore } from "../lib/nexus-core.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
 
@@ -121,6 +122,7 @@ global.ultimateEngines = createUltimateEngines({ core: global.aiCore, store: glo
 global.securityCenter = createSecurityCenter({ store: global.featureStore })
 global.automationControl = createAutomationControl({ core: global.aiCore, store: global.featureStore })
 global.systemHealth = createSystemHealth({ providers: global.aiProviders, core: global.aiCore, engines: global.ultimateEngines })
+global.nexusCore = createNexusCore({ core: global.aiCore, store: global.featureStore, security: global.securityCenter })
 
 global.loadDatabase = async function() {
     if (global.db.data) return
