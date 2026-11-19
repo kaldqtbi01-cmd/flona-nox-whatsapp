@@ -35,7 +35,11 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
   assert.equal(resolveDialect('لهجة صنعاء'), 'sanaani')
   assert.equal(resolveDialect('تلقائي'), 'auto')
   assert.match(DIALECTS.sanaani.instruction, /لا تخلطها/)
-  assert.match(DIALECTS.sanaani.instruction, /ما قلتش/)
+  assert.match(DIALECTS.sanaani.instruction, /أشتي\/تشتي/)
+  assert.match(DIALECTS.sanaani.instruction, /دحين/)
+  assert.match(DIALECTS.sanaani.instruction, /شاروح/)
+  assert.match(DIALECTS.sanaani.instruction, /ما فهمتش/)
+  assert.match(DIALECTS.sanaani.instruction, /لا تحشر القائمة كلها/)
 })
 
 test('محرك الشخصيات والمزاج يحل الأسماء العربية', () => {
