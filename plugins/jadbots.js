@@ -67,6 +67,22 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
     // التفعيل الافتراضي يمنع ظهور رسالة التعطيل عند إنشاء إعدادات جديدة.
     // يمكن للمطور تعطيل الخاصية لاحقًا بوضع jadibotmd=false.
     if (botSettings.jadibotmd === false) return m.reply('⚠️ خاصية البوتات الفرعية معطلة.')
+    if (command === 'تنصيب' && String(text || '').trim().split(/\s+/)[0] === 'تنشيط') {
+        if (!isOwner) return m.reply('⚠️ هذا الأمر متاح لمالك البوت فقط.')
+        const result = await reactivateSubBots()
+        if (result.busy) {
+            return m.reply('♻️ بدأ طلب التنشيط؛ فحص البوتات جارٍ الآن، وستتم إعادة المحاولة فور انتهاء الفحص الحالي.')
+        }
+        if (!result.sessions) return m.reply('ℹ️ لا توجد جلسات بوتات فرعية محفوظة لإعادة تنشيطها.')
+        return m.reply(
+            `♻️ تم تنفيذ طلب تنشيط البوتات الفرعية.\n` +
+            `• جلسات محفوظة: ${result.sessions}\n` +
+            `• بدأت إعادة الاتصال: ${result.started}\n` +
+            `• تم تجاوزها (متصلة/غير مقترنة): ${result.skipped}\n` +
+            `• تعذر بدءها الآن: ${result.failed}\n` +
+            `الجلسات المتصلة تُترك كما هي، ولم تُحذف أي ملفات جلسة.`
+        )
+    }
     if (command === 'تنصيب' && !String(text || '').replace(/\D/g, '')) {
         return m.reply(
             `📱 أرسل رقم حساب البوت الفرعي مع الأمر.\n\n` +
@@ -414,15 +430,25 @@ async function joinChannels(conn) {
     }
 }
 
+export async function reactivateSubBots() {
+    for (const [sessionId, timer] of subBotReconnectTimers) {
+        clearTimeout(timer)
+        subBotReconnectTimers.delete(sessionId)
+    }
+    terminalSubBots.clear()
+    return checkSubBots()
+}
+
 // ═══════════════════════════════════════
 // مراقبة البوتات الفرعية كل دقيقة
 // ═══════════════════════════════════════
 export async function checkSubBots() {
-    if (checkSubBotsRunning) return
+    const result = { busy: false, sessions: 0, started: 0, skipped: 0, failed: 0 }
+    if (checkSubBotsRunning) return { ...result, busy: true }
     checkSubBotsRunning = true
     try {
         const subBotDir = path.resolve('./jadibts')
-        if (!fs.existsSync(subBotDir)) return
+        if (!fs.existsSync(subBotDir)) return result
 
         const folders = fs.readdirSync(subBotDir)
             .filter(f => fs.statSync(path.join(subBotDir, f)).isDirectory())
@@ -431,11 +457,16 @@ export async function checkSubBots() {
             const botPath = path.join(subBotDir, folder)
             const credsPath = path.join(botPath, 'creds.json')
             if (!fs.existsSync(credsPath)) continue
+            result.sessions++
 
             try {
                 const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'))
-                if (creds.registered === false && !creds.me?.id) continue
+                if (creds.registered === false && !creds.me?.id) {
+                    result.skipped++
+                    continue
+                }
             } catch (error) {
+                result.failed++
                 console.warn(`[SUBBOT WATCHDOG] جلسة غير قابلة للقراءة (+${folder}); لم تُحذف: ${error.message}`)
                 continue
             }
@@ -447,11 +478,14 @@ export async function checkSubBots() {
             }
             const current = subBotSockets.get(folder)
             if (terminalSubBots.has(folder) || startingSubBots.has(folder) || subBotReconnectTimers.has(folder) ||
-                current?.ws?.isOpen === true || current?.ws?.isConnecting === true || hasActiveSubBot(global.conns, folder)) continue
+                current?.ws?.isOpen === true || current?.ws?.isConnecting === true || hasActiveSubBot(global.conns, folder)) {
+                result.skipped++
+                continue
+            }
 
             console.log(chalk.yellowBright(`\n┆ اكتشف المراقب جلسة غير متصلة (+${folder})؛ بدء الاتصال دون حذف ملفاتها...\n`))
             try {
-                await gataJadiBot({
+                const started = await gataJadiBot({
                     pathGataJadiBot: botPath,
                     m: null,
                     conn: global.conn,
@@ -460,10 +494,14 @@ export async function checkSubBots() {
                     command: 'jadibot',
                     fromCommand: false
                 })
+                if (started) result.started++
+                else result.skipped++
             } catch (error) {
+                result.failed++
                 console.error(chalk.redBright(`فشل تشغيل (+${folder})؛ ستتم إعادة المحاولة في الفحص التالي:`), error.message)
             }
         }
+        return result
     } finally {
         checkSubBotsRunning = false
     }
