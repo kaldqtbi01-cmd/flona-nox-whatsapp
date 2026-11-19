@@ -5,18 +5,12 @@ import fs from "fs"
 import path from "path"
 import pino from 'pino'
 import chalk from 'chalk'
-import * as ws from 'ws'
-import { fileURLToPath } from 'url'
-import { exec, spawn } from 'child_process'
 import { makeWASocket } from '../lib/simple.js'
+import { getSocketSubBotNumber, getSubBotReconnectDelay, hasActiveSubBot } from '../lib/subbot-lifecycle.js'
 
 if (typeof global.wm === 'undefined') {
     global.wm = '𝐂𝐇𝐄𝐎𝐍 𝐁𝐎𝐓'
 }
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const { CONNECTING } = ws
 
 let rtx = `⛄┊≡ ◡̈⃝🧸↜♡︎✿︎𝐂𝐇𝐄𝐎𝐍 𝐁𝐎𝐓 𝚋𝚘𝚝ꨄ︎ఌ
 🎤┊≡ ◡̈⃝🎼↜اســتــخــدم هــذا الــكــود لــتــصــبــح بــوت فــرعــي
@@ -43,9 +37,27 @@ let rtx2 = `⛄┊≡ ◡̈⃝🧸↜♡︎✿︎𝐂𝐇𝐄𝐎𝐍 𝐁𝐎�
 ┤└─ׅ─ׅ┈ ─๋︩︪──ׅ─ׅ┈ ─๋︩︪☇
 ╯─ׅ─๋︩︪─┈─๋︩︪─═⊐‹♻️›⊏═┈─๋︩︪⊐`
 
-const gataJBOptions = {}
-const retryMap = new Map()
-const maxAttempts = 5
+const startingSubBots = new Set()
+const terminalSubBots = new Set()
+const subBotSockets = new Map()
+const subBotReconnectTimers = new Map()
+let checkSubBotsRunning = false
+
+function removeSocketFromConns(sock) {
+    if (!Array.isArray(global.conns)) return
+    for (let i = global.conns.length - 1; i >= 0; i--) {
+        if (global.conns[i] === sock) global.conns.splice(i, 1)
+    }
+}
+
+function removeStaleSubBotSockets(number) {
+    for (const sock of [...(global.conns || [])]) {
+        if (getSocketSubBotNumber(sock) !== String(number) || sock?.ws?.isOpen === true || sock?.ws?.isConnecting === true) continue
+        removeSocketFromConns(sock)
+        try { sock.ev?.removeAllListeners?.() } catch {}
+        try { sock.ws?.close?.() } catch {}
+    }
+}
 
 if (global.conns instanceof Array) console.log()
 else global.conns = []
@@ -71,20 +83,40 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
     if (!fs.existsSync(pathGataJadiBot)) {
         fs.mkdirSync(pathGataJadiBot, { recursive: true })
     }
-    gataJBOptions.pathGataJadiBot = pathGataJadiBot
-    gataJBOptions.m = m
-    gataJBOptions.conn = conn
-    gataJBOptions.args = args
-    gataJBOptions.usedPrefix = usedPrefix
-    gataJBOptions.command = command
-    gataJBOptions.fromCommand = true
-    gataJadiBot(gataJBOptions, text)
+    const started = await gataJadiBot({
+        pathGataJadiBot,
+        m,
+        conn,
+        args: [...args],
+        usedPrefix,
+        command,
+        fromCommand: true
+    }, text)
+    if (!started) return m.reply('⚠️ البوت الفرعي متصل أو قيد الاتصال/إعادة المحاولة بالفعل. لم أبدأ جلسة مكررة.')
 }
 
 handler.command = /^(jadibot|serbot|rentbot|تنصيب)$/i
 export default handler
 
 export async function gataJadiBot(options, text) {
+    const sessionId = path.basename(path.resolve(options.pathGataJadiBot))
+    const currentSocket = subBotSockets.get(sessionId)
+    if (startingSubBots.has(sessionId) || subBotReconnectTimers.has(sessionId) ||
+        currentSocket?.ws?.isOpen === true || currentSocket?.ws?.isConnecting === true ||
+        hasActiveSubBot(global.conns, sessionId)) return false
+    if (terminalSubBots.has(sessionId) && !options.fromCommand) return false
+    if (options.fromCommand) terminalSubBots.delete(sessionId)
+    startingSubBots.add(sessionId)
+    try {
+        await startSubBot(options, text, sessionId)
+        return true
+    } catch (error) {
+        startingSubBots.delete(sessionId)
+        throw error
+    }
+}
+
+async function startSubBot(options, text, sessionId) {
     let { pathGataJadiBot, m, conn, args, usedPrefix, command } = options
 
     // ═══════════════════════════════════════
@@ -123,10 +155,13 @@ export async function gataJadiBot(options, text) {
     // ═══════════════════════════════════════
     // إعداد الاتصال
     // ═══════════════════════════════════════
-    let { version } = await fetchLatestBaileysVersion()
+    let version
+    let state
+    let saveCreds
+    ;({ version } = await fetchLatestBaileysVersion())
     const msgRetry = (MessageRetryMap) => {}
     const msgRetryCache = new NodeCache()
-    const { state, saveCreds } = await useMultiFileAuthState(pathGataJadiBot)
+    ;({ state, saveCreds } = await useMultiFileAuthState(pathGataJadiBot))
 
     const connectionOptions = {
         logger: pino({ level: 'fatal' }),
@@ -143,9 +178,11 @@ export async function gataJadiBot(options, text) {
     }
 
     let sock = makeWASocket(connectionOptions)
+    subBotSockets.set(sessionId, sock)
     sock.isInit = false
     let isInit = true
     let reconnectAttempts = 0
+    let scheduleReconnect = () => {}
 
     // ═══════════════════════════════════════
     // معالجة أحداث الاتصال
@@ -209,95 +246,28 @@ export async function gataJadiBot(options, text) {
             setTimeout(() => conn.sendMessage(m.sender, { delete: codeBot.key }), 30000)
         }
 
-        // ═══════════════════════════════════════
-        // دالة تنظيف الاتصال
-        // ═══════════════════════════════════════
-        const endSesion = async (loaded) => {
-            if (!loaded) {
-                try { sock.ws.close() } catch {}
-                sock.ev.removeAllListeners()
-                let i = global.conns.indexOf(sock)
-                if (i < 0) return
-                delete global.conns[i]
-                global.conns.splice(i, 1)
-            }
-        }
-
         const reason = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode
 
-        // ═══════════════════════════════════════
-        // معالجة الانقطاع — كل حالة لوحدها
-        // ═══════════════════════════════════════
         if (connection === 'close') {
-
-            // ─── 428: اتصال مغلق مؤقتاً ───
-            if (reason === 428) {
-                if (reconnectAttempts < maxAttempts) {
-                    const delayTime = 1000 * Math.pow(2, reconnectAttempts)
-                    console.log(chalk.bold.magentaBright(`\n┆ إعادة اتصال (+${path.basename(pathGataJadiBot)}) بعد ${delayTime / 1000}ث (${reconnectAttempts + 1}/${maxAttempts})\n`))
-                    await sleep(delayTime)
-                    await creloadHandler(true).catch(console.error)
-                    reconnectAttempts++
-                } else {
-                    console.log(chalk.redBright(`┆ فشل الاتصال (+${path.basename(pathGataJadiBot)}) بعد ${maxAttempts} محاولات`))
-                }
-            }
-
-            // ─── 408: انتهت المهلة ───
-            if (reason === 408) {
-                console.log(chalk.bold.magentaBright(`\n┆ انتهت مهلة الاتصال (+${path.basename(pathGataJadiBot)}). إعادة اتصال...\n`))
-                await creloadHandler(true).catch(console.error)
-            }
-
-            // ─── 440: جلسة بديلة (لا تحذف!) ───
-            if (reason === 440) {
-                console.log(chalk.bold.magentaBright(`\n┆ تم استبدال الجلسة (+${path.basename(pathGataJadiBot)}) بجلسة أخرى\n`))
-                try {
-                    if (options.fromCommand && m?.chat) {
-                        await conn.sendMessage(m.chat, {
-                            text: '> *تم اكتشاف جلسة جديدة. احذف الجلسة القديمة للمتابعة*'
-                        }, { quoted: m })
-                    }
-                } catch {}
-            }
-
-            // ─── 401 / 405: جلسة غير صالحة → حذف ───
-            if (reason === 401 || reason === 405) {
-                console.log(chalk.bold.magentaBright(`\n┆ جلسة (+${path.basename(pathGataJadiBot)}) غير صالحة (${reason}). حذف...\n`))
-                try {
-                    if (options.fromCommand && m?.chat) {
-                        await conn.sendMessage(m.chat, {
-                            text: '*🟢 الجلسة معلقة*\n\n> *لزما امسح ملف الاتصال  مات*'
-                        }, { quoted: m })
-                    }
-                } catch {}
-                try { fs.rmdirSync(pathGataJadiBot, { recursive: true }) } catch {}
-                await endSesion(false)
-            }
-
-            // ─── 403: حساب محظور → حذف ───
-            if (reason === 403) {
-                console.log(chalk.bold.magentaBright(`\n┆ حساب (+${path.basename(pathGataJadiBot)}) محظور أو قيد الدعم\n`))
-                try { fs.rmdirSync(pathGataJadiBot, { recursive: true }) } catch {}
-                await endSesion(false)
-            }
-
-            // ─── 500: خطأ سيرفر ───
-            if (reason === 500) {
-                console.log(chalk.bold.magentaBright(`\n┆ انقطع الاتصال (+${path.basename(pathGataJadiBot)}) خطأ سيرفر\n`))
+            removeSocketFromConns(sock)
+            // 401 تعني أن واتساب سجّل خروج الجهاز؛ إعادة الاتصال وحدها لن تعيد ربطه.
+            // كل الانقطاعات الأخرى تُعامل كعابرة وتستمر معها المحاولات تلقائيًا.
+            const terminal = reason === 401
+            if (terminal) {
+                terminalSubBots.add(sessionId)
+                startingSubBots.delete(sessionId)
+                const timer = subBotReconnectTimers.get(sessionId)
+                if (timer) clearTimeout(timer)
+                subBotReconnectTimers.delete(sessionId)
+                console.error(chalk.redBright(`┆ جلسة البوت الفرعي (+${sessionId}) توقفت برمز ${reason}; ملفات الجلسة محفوظة ولم تُحذف. قد تحتاج إعادة ربط يدوية.`))
                 if (options.fromCommand && m?.chat) {
-                    try {
-                        await conn.sendMessage(m.chat, {
-                            text: '*انقطع الاتصال*\n\n> *اصبر امسح ملف الاتصال *'
-                        }, { quoted: m })
-                    } catch {}
+                    await conn.sendMessage(m.chat, {
+                        text: `⚠️ توقفت جلسة البوت الفرعي برمز ${reason}. ملفات الجلسة لم تُحذف؛ قد يلزم إعادة ربطها يدويًا.`
+                    }, { quoted: m }).catch(() => {})
                 }
-            }
-
-            // ─── 515: إعادة تشغيل تلقائي ───
-            if (reason === 515) {
-                console.log(chalk.bold.magentaBright(`\n┆ إعادة تشغيل تلقائي (+${path.basename(pathGataJadiBot)})\n`))
-                await creloadHandler(true).catch(console.error)
+            } else {
+                console.warn(chalk.yellowBright(`┆ انقطع البوت الفرعي (+${sessionId}) برمز ${reason ?? 'غير معروف'}؛ ستتم إعادة المحاولة تلقائيًا.`))
+                scheduleReconnect(reason)
             }
         }
 
@@ -311,6 +281,11 @@ export async function gataJadiBot(options, text) {
         // ═══════════════════════════════════════
         if (connection === 'open') {
             reconnectAttempts = 0
+            startingSubBots.delete(sessionId)
+            terminalSubBots.delete(sessionId)
+            const timer = subBotReconnectTimers.get(sessionId)
+            if (timer) clearTimeout(timer)
+            subBotReconnectTimers.delete(sessionId)
             if (!global.db.data?.users) loadDatabase()
 
             let userName = sock.authState.creds.me.name || 'مجهول'
@@ -319,7 +294,14 @@ export async function gataJadiBot(options, text) {
             console.log(chalk.bold.cyanBright(`\n✅ ${userName} (+${path.basename(pathGataJadiBot)}) متصل بنجاح.\n`))
 
             sock.isInit = true
-            global.conns.push(sock)
+            subBotSockets.set(sessionId, sock)
+            for (const oldSock of [...global.conns]) {
+                if (oldSock === sock || getSocketSubBotNumber(oldSock) !== sessionId) continue
+                removeSocketFromConns(oldSock)
+                try { oldSock.ev?.removeAllListeners?.() } catch {}
+                try { oldSock.ws?.close?.() } catch {}
+            }
+            if (!global.conns.includes(sock)) global.conns.push(sock)
             console.log(`📢 إجمالي البوتات الفرعية النشطة: ${global.conns.length}`)
 
             // ─── رسالة النجاح ───
@@ -351,20 +333,6 @@ export async function gataJadiBot(options, text) {
     }
 
     // ═══════════════════════════════════════
-    // تنظيف الاتصالات الميتة كل 60 ثانية
-    // ═══════════════════════════════════════
-    setInterval(async () => {
-        if (!sock.user) {
-            try { sock.ws.close() } catch {}
-            sock.ev.removeAllListeners()
-            let i = global.conns.indexOf(sock)
-            if (i < 0) return
-            delete global.conns[i]
-            global.conns.splice(i, 1)
-        }
-    }, 60000)
-
-    // ═══════════════════════════════════════
     // تحميل وتحديث المعالج
     // ═══════════════════════════════════════
     let handler = await import('../handler.js')
@@ -378,9 +346,11 @@ export async function gataJadiBot(options, text) {
 
         if (restatConn) {
             const oldChats = sock.chats
+            removeSocketFromConns(sock)
+            try { sock.ev.removeAllListeners() } catch {}
             try { sock.ws.close() } catch {}
-            sock.ev.removeAllListeners()
             sock = makeWASocket(connectionOptions, { chats: oldChats })
+            subBotSockets.set(sessionId, sock)
             isInit = true
         }
 
@@ -412,11 +382,28 @@ export async function gataJadiBot(options, text) {
         isInit = false
         return true
     }
-    creloadHandler(false)
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    scheduleReconnect = (reason) => {
+        if (terminalSubBots.has(sessionId) || subBotReconnectTimers.has(sessionId)) return
+        const attempt = reconnectAttempts++
+        const delay = getSubBotReconnectDelay(attempt)
+        console.warn(chalk.yellowBright(`┆ إعادة اتصال البوت الفرعي (+${sessionId}) بعد ${Math.ceil(delay / 1000)} ثانية (محاولة ${attempt + 1})`))
+        const timer = setTimeout(async () => {
+            subBotReconnectTimers.delete(sessionId)
+            startingSubBots.add(sessionId)
+            try {
+                await creloadHandler(true)
+                startingSubBots.delete(sessionId)
+            } catch (error) {
+                startingSubBots.delete(sessionId)
+                console.error(chalk.redBright(`فشل إنشاء socket بديل (+${sessionId}, ${reason ?? 'غير معروف'}):`), error.message)
+                scheduleReconnect('socket-create-failed')
+            }
+        }, delay)
+        timer.unref?.()
+        subBotReconnectTimers.set(sessionId, timer)
+    }
+    await creloadHandler(false)
+    startingSubBots.delete(sessionId)
 }
 
 async function joinChannels(conn) {
@@ -428,34 +415,41 @@ async function joinChannels(conn) {
 }
 
 // ═══════════════════════════════════════
-// فحص وإعادة تشغيل البوتات الفرعية كل 30 دقيقة
+// مراقبة البوتات الفرعية كل دقيقة
 // ═══════════════════════════════════════
 export async function checkSubBots() {
-    const subBotDir = path.resolve('./jadibts')
-    if (!fs.existsSync(subBotDir)) return
+    if (checkSubBotsRunning) return
+    checkSubBotsRunning = true
+    try {
+        const subBotDir = path.resolve('./jadibts')
+        if (!fs.existsSync(subBotDir)) return
 
-    const folders = fs.readdirSync(subBotDir)
-        .filter(f => fs.statSync(path.join(subBotDir, f)).isDirectory())
+        const folders = fs.readdirSync(subBotDir)
+            .filter(f => fs.statSync(path.join(subBotDir, f)).isDirectory())
 
-    for (const folder of folders) {
-        const botPath = path.join(subBotDir, folder)
-        const credsPath = path.join(botPath, 'creds.json')
+        for (const folder of folders) {
+            const botPath = path.join(subBotDir, folder)
+            const credsPath = path.join(botPath, 'creds.json')
+            if (!fs.existsSync(credsPath)) continue
 
-        if (!fs.existsSync(credsPath)) continue
-
-        const isConnected = global.conns.find(c =>
-            c.user?.jid?.includes(folder) || false
-        )
-
-        if (!isConnected) {
-            const retries = retryMap.get(folder) || 0
-            if (retries >= 5) {
-                retryMap.delete(folder)
+            try {
+                const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'))
+                if (creds.registered === false && !creds.me?.id) continue
+            } catch (error) {
+                console.warn(`[SUBBOT WATCHDOG] جلسة غير قابلة للقراءة (+${folder}); لم تُحذف: ${error.message}`)
                 continue
             }
 
-            console.log(chalk.yellowBright(`\n┆ إعادة تشغيل بوت فرعي (+${folder})...\n`))
+            removeStaleSubBotSockets(folder)
+            const tracked = subBotSockets.get(folder)
+            if (tracked && tracked.ws?.isOpen !== true && tracked.ws?.isConnecting !== true && !subBotReconnectTimers.has(folder)) {
+                subBotSockets.delete(folder)
+            }
+            const current = subBotSockets.get(folder)
+            if (terminalSubBots.has(folder) || startingSubBots.has(folder) || subBotReconnectTimers.has(folder) ||
+                current?.ws?.isOpen === true || current?.ws?.isConnecting === true || hasActiveSubBot(global.conns, folder)) continue
 
+            console.log(chalk.yellowBright(`\n┆ اكتشف المراقب جلسة غير متصلة (+${folder})؛ بدء الاتصال دون حذف ملفاتها...\n`))
             try {
                 await gataJadiBot({
                     pathGataJadiBot: botPath,
@@ -466,13 +460,16 @@ export async function checkSubBots() {
                     command: 'jadibot',
                     fromCommand: false
                 })
-                retryMap.delete(folder)
-            } catch (e) {
-                console.error(chalk.redBright(`فشل تشغيل (+${folder}):`), e.message)
-                retryMap.set(folder, retries + 1)
+            } catch (error) {
+                console.error(chalk.redBright(`فشل تشغيل (+${folder})؛ ستتم إعادة المحاولة في الفحص التالي:`), error.message)
             }
         }
+    } finally {
+        checkSubBotsRunning = false
     }
 }
 
-setInterval(checkSubBots, 1800000)
+const subBotWatchdog = setInterval(() => {
+    checkSubBots().catch(error => console.error('[SUBBOT WATCHDOG]', error.message))
+}, 60_000)
+subBotWatchdog.unref?.()
