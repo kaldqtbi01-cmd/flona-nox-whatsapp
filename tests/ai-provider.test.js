@@ -41,7 +41,7 @@ test('يوجه الصورة إلى Gemini', async () => {
   assert.equal(result.provider, 'gemini')
   assert.equal(result.text, 'تحليل الصورة')
   assert.match(calls[0].url, /generativelanguage\.googleapis\.com/)
-  assert.match(calls[0].url, /\/v1\/models\/gemini-3\.1-flash-lite:generateContent/)
+  assert.match(calls[0].url, /\/v1beta\/models\/gemini-3\.1-flash-lite:generateContent/)
 })
 
 test('يستخدم fallback عند فشل Groq', async () => {
@@ -75,7 +75,7 @@ test('يتجاوز نموذج Gemini الذي يعيد 404 إلى نموذج/إ�
   const result = await api.ask({ task: 'chat', input: 'اختبار نموذج بديل' })
   assert.equal(result.provider, 'gemini')
   assert.equal(result.text, 'Gemini fallback')
-  assert.ok(calls.some(url => url.includes('/v1/models/gemini-3.5-flash-lite')))
+  assert.ok(calls.some(url => url.includes('/v1beta/models/gemini-3.5-flash-lite')))
 })
 
 test('يتجاوز حد Gemini 429 إلى نموذج أخف', async () => {
