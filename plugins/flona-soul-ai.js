@@ -1,4 +1,5 @@
 import { aiProviders } from '../lib/ai-providers.js'
+import { createChatQueue } from '../lib/ai-queue.js'
 import {
   DIALECTS,
   MOODS,
@@ -19,7 +20,7 @@ import {
   resolveResponseLength,
 } from '../lib/flona-soul-engine.js'
 
-const IN_FLIGHT = new Map()
+const CHAT_QUEUE = createChatQueue({ maxDepth: 20 })
 const RATE = new Map()
 const SEEN_MESSAGES = new Map()
 const PREFIXES = /^[#!./-]/
@@ -71,7 +72,12 @@ function quotedText(m) {
 }
 
 function getRecentContext(chat) {
-  return (chat.soulAI?.context || []).slice(-8).map(item => `${item.sender}: ${item.text}`).join('\n')
+  return (chat.soulAI?.context || []).slice(-8).flatMap(item => {
+    const turns = []
+    if (item.text) turns.push(`[رسالة سابقة من ${item.sender}]: ${item.text}`)
+    if (item.reply) turns.push(`[رد لوكا على تلك الرسالة]: ${item.reply}`)
+    return turns
+  }).join('\n')
 }
 
 function rememberContext(chat, sender, text, reply) {
@@ -260,65 +266,72 @@ handler.all = async function (m, ctx = {}) {
   if (settings.excludedUsers.includes(m.sender)) return
   const responseLength = resolveResponseLength(text)
   if (!withinRate(m.chat, settings)) return
-  if (IN_FLIGHT.has(m.chat)) return
-  IN_FLIGHT.set(m.chat, true)
+  const connection = this
+  const quoted = replied ? quotedText(m) : ''
 
   try {
-    const senderName = m.pushName || m.sender?.split('@')[0] || 'العضو'
-    if (!text && m.message?.audioMessage) {
-      await this.sendMessage(m.chat, { text: 'أقدر فهم النص والصور حاليًا، لكن تحويل الصوت إلى نص غير متاح في هذه النسخة بعد.' }, { quoted: m })
-      return
-    }
-    const mood = detectMood(text, settings)
-    const personality = getActivePersonality(settings)
-    const dialect = DIALECTS[settings.dialect] || DIALECTS.auto
-    const prompt = buildSoulPrompt({
-      senderName,
-      text,
-      quotedText: quotedText(m),
-      recentContext: getRecentContext(chat),
-      personality: personality.style,
-      dialect: dialect.instruction,
-      mood: MOODS[mood],
-    })
-    const systemInstruction = buildSoulSystemPrompt(
-      settings,
-      settings.dialect === 'auto' ? '' : dialect.instruction,
-      mood,
-      getSoulMemory(chat),
-      responseLength,
-    )
-    const imagePart = settings.allowMedia ? await getMediaPart(m) : null
-    const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }]
-    let result
-    try {
-      result = await aiProviders.geminiGenerate({ contents: [{ role: 'user', parts }], systemInstruction, temperature: 0.65, maxTokens: 500 })
-    } catch {
-      result = await aiProviders.ask({ task: 'chat', messages: [{ role: 'user', content: prompt }], systemInstruction, temperature: 0.65, maxTokens: 500, fallback: true })
-    }
-    const reply = String(result?.text || '').trim()
-    if (!reply || isRepeatedReply(settings, reply)) return
-    await this.sendMessage(m.chat, { text: reply }, { quoted: m })
-    rememberReply(settings, reply)
-    rememberContext(chat, senderName, text, reply)
-    addSoulMemory(chat, text)
-    await saveDb()
-  } catch (error) {
-    const message = String(error?.message || '')
-    if (!message.includes('429')) console.error('[FLONA SOUL]', message || error)
-    const reason = /401|403|مفتاح غير مضبوط|مفتاح/i.test(message)
-      ? 'مفتاح Gemini أو Groq مرفوض/غير محمّل؛ راجع ملف .env ثم أعد تشغيل PM2.'
-      : /429|rate limit|حد الطلبات/i.test(message)
-        ? 'تم بلوغ حد الطلبات لدى مزود الذكاء؛ جرّب بعد دقيقة.'
-        : /404|model not found|نموذج/i.test(message)
-          ? 'نموذج الذكاء غير متاح في المفتاح الحالي؛ راجع GEMINI_MODEL.'
-          : 'حدث عطل مؤقت في Gemini وGroq؛ راجع سجل PM2.'
-    await this.sendMessage(m.chat, {
-      text: `⚠️ لوكا استلم رسالتك، لكن مزود الذكاء لم يُكمل الرد.
+    return await CHAT_QUEUE.run(m.chat, async () => {
+      try {
+        const senderName = m.pushName || m.sender?.split('@')[0] || 'العضو'
+        if (!text && m.message?.audioMessage) {
+          await connection.sendMessage(m.chat, { text: 'أقدر فهم النص والصور حاليًا، لكن تحويل الصوت إلى نص غير متاح في هذه النسخة بعد.' }, { quoted: m })
+          return
+        }
+        const mood = detectMood(text, settings)
+        const personality = getActivePersonality(settings)
+        const dialect = DIALECTS[settings.dialect] || DIALECTS.auto
+        const prompt = buildSoulPrompt({
+          senderName,
+          text,
+          quotedText: quoted,
+          recentContext: getRecentContext(chat),
+          personality: personality.style,
+          dialect: dialect.instruction,
+          mood: MOODS[mood],
+        })
+        const systemInstruction = buildSoulSystemPrompt(
+          settings,
+          settings.dialect === 'auto' ? '' : dialect.instruction,
+          mood,
+          getSoulMemory(chat),
+          responseLength,
+        )
+        const imagePart = settings.allowMedia ? await getMediaPart(m) : null
+        const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }]
+        let result
+        try {
+          result = await aiProviders.geminiGenerate({ contents: [{ role: 'user', parts }], systemInstruction, temperature: 0.65, maxTokens: 500 })
+        } catch {
+          result = await aiProviders.ask({ task: 'chat', messages: [{ role: 'user', content: prompt }], systemInstruction, temperature: 0.65, maxTokens: 500, fallback: true })
+        }
+        const reply = String(result?.text || '').trim()
+        if (!reply || isRepeatedReply(settings, reply)) return
+        await connection.sendMessage(m.chat, { text: reply }, { quoted: m })
+        rememberReply(settings, reply)
+        rememberContext(chat, senderName, text, reply)
+        addSoulMemory(chat, text)
+        await saveDb()
+      } catch (error) {
+        const message = String(error?.message || '')
+        if (!message.includes('429')) console.error('[FLONA SOUL]', message || error)
+        const reason = /401|403|مفتاح غير مضبوط|مفتاح/i.test(message)
+          ? 'مفتاح Gemini أو Groq مرفوض/غير محمّل؛ راجع ملف .env ثم أعد تشغيل PM2.'
+          : /429|rate limit|حد الطلبات/i.test(message)
+            ? 'تم بلوغ حد الطلبات لدى مزود الذكاء؛ جرّب بعد دقيقة.'
+            : /404|model not found|نموذج/i.test(message)
+              ? 'نموذج الذكاء غير متاح في المفتاح الحالي؛ راجع GEMINI_MODEL.'
+              : 'حدث عطل مؤقت في Gemini وGroq؛ راجع سجل PM2.'
+        await connection.sendMessage(m.chat, {
+          text: `⚠️ لوكا استلم رسالتك، لكن مزود الذكاء لم يُكمل الرد.
 السبب المحتمل: ${reason}`
+        }, { quoted: m }).catch(() => {})
+      }
+    })
+  } catch (error) {
+    if (String(error?.message || '') !== 'queue depth exceeded') throw error
+    await connection.sendMessage(m.chat, {
+      text: 'لوكا تعالج رسائل سابقة الآن؛ أرسل رسالتك مرة أخرى بعد لحظات.'
     }, { quoted: m }).catch(() => {})
-  } finally {
-    IN_FLIGHT.delete(m.chat)
   }
 }
 

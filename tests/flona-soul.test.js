@@ -5,6 +5,7 @@ import {
   PERSONALITIES,
   DIALECTS,
   addSoulMemory,
+  buildSoulPrompt,
   buildSoulSystemPrompt,
   clearSoulMemory,
   getSoulMemory,
@@ -82,6 +83,22 @@ test('كل شخصيات لوكا تخلو من عبارات افتتاحية و�
     const prompt = buildSoulSystemPrompt(settings, '', 'calm', [], resolveResponseLength('رسالة قصيرة'))
     for (const phrase of cannedPhrases) assert.equal(prompt.includes(phrase), false)
   }
+})
+
+test('prompt يميز الرسالة الحالية عن الرسائل السابقة ويطلب الرد على الحالية فقط', () => {
+  const prompt = buildSoulPrompt({
+    senderName: 'خالد',
+    text: 'طيب ما الحل؟',
+    quotedText: 'هذه رسالة سابقة من لوكا',
+    recentContext: 'عضو: السؤال الأول\nلوكا: جواب السؤال الأول',
+    personality: 'هادئ',
+    dialect: 'عربي واضح',
+    mood: 'هادئ',
+  })
+  assert.match(prompt, /محادثة سابقة — للسياق فقط/)
+  assert.match(prompt, /الرسالة الحالية المطلوب الرد عليها الآن/)
+  assert.match(prompt, /أجب عن الرسالة الحالية فقط/)
+  assert.match(prompt, /طيب ما الحل\؟/)
 })
 
 test('الشخصية المخصصة تدخل في System Prompt بدل تجاهلها', () => {
