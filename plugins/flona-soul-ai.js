@@ -35,19 +35,22 @@ function getChat(m) {
   return chats[m.chat] ||= {}
 }
 
-function normalizeJid(jid) {
-  return String(jid || '').split(':')[0].split('@')[0]
+function jidVariants(jid) {
+  const value = String(jid || '').trim().toLowerCase()
+  if (!value) return []
+  const base = value.split(':')[0]
+  const number = base.split('@')[0]
+  return [value, base, number, `${number}@s.whatsapp.net`, `${number}@lid`]
 }
-
-function botIsMentioned(m, botId) {
+function botIsMentioned(m, user) {
   const mentions = m.mentionedJid || m.msg?.contextInfo?.mentionedJid || m.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
-  const botNumber = normalizeJid(botId)
-  return Array.isArray(mentions) && mentions.some(jid => normalizeJid(jid) === botNumber)
+  const botIds = [user?.id, user?.jid, user?.lid].flatMap(jidVariants)
+  return Array.isArray(mentions) && mentions.some(jid => jidVariants(jid).some(candidate => botIds.includes(candidate)))
 }
-
-function isReplyToBot(m, botId) {
+function isReplyToBot(m, user) {
   const quotedSender = m.quoted?.sender || m.message?.extendedTextMessage?.contextInfo?.participant
-  return Boolean(quotedSender && botId && normalizeJid(quotedSender) === normalizeJid(botId))
+  const botIds = [user?.id, user?.jid, user?.lid].flatMap(jidVariants)
+  return Boolean(quotedSender && botIds.some(candidate => jidVariants(quotedSender).includes(candidate)))
 }
 
 function quotedText(m) {
@@ -213,9 +216,8 @@ handler.all = async function (m) {
   const text = m.text?.trim() || ''
   const mediaMessage = m.message?.imageMessage || m.message?.audioMessage || m.message?.stickerMessage
   if ((!text && !mediaMessage) || PREFIXES.test(text)) return
-  const botId = this.user?.id
-  const mentioned = botIsMentioned(m, botId)
-  const replied = isReplyToBot(m, botId)
+  const mentioned = botIsMentioned(m, this.user)
+  const replied = isReplyToBot(m, this.user)
   if (!mentioned && !replied) return
 
   const messageId = m.key?.id
@@ -232,6 +234,8 @@ handler.all = async function (m) {
 
   const chat = getChat(m)
   const settings = getSoulSettings(chat)
+  // ترحيل تفعيل يورو القديم إلى لوكا مرة واحدة بدون كسر إعدادات المجموعات الحالية.
+  if (chat.humanAI === true && settings.enabled === false) settings.enabled = true
   if (!settings.enabled || settings.paused) return
   if (settings.allowUsers && !settings.allowUsers.includes(m.sender)) return
   if (settings.excludedUsers.includes(m.sender)) return
