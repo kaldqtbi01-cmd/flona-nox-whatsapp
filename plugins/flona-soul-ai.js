@@ -44,6 +44,24 @@ function jidVariants(jid) {
   const number = base.split('@')[0]
   return [value, base, number, `${number}@s.whatsapp.net`, `${number}@lid`]
 }
+function whatsappPhoneNumber(value) {
+  const raw = String(value || '').trim()
+  if (/@lid(?:$|:)/i.test(raw)) return ''
+  const local = raw.split('@')[0].split(':')[0]
+  const digits = local.replace(/\D/g, '')
+  return digits.length >= 7 && digits.length <= 15 ? digits : ''
+}
+function isSoulCreator(m, groupMetadata) {
+  const creatorNumber = String(global.db?.data?.soulAICreatorNumber || '').replace(/\D/g, '')
+  if (!creatorNumber) return false
+  if (whatsappPhoneNumber(m.sender) === creatorNumber) return true
+  const senderIds = new Set(jidVariants(m.sender))
+  return (groupMetadata?.participants || []).some(participant => {
+    const ids = [participant?.id, participant?.jid, participant?.lid].flatMap(jidVariants)
+    if (!ids.some(id => senderIds.has(id))) return false
+    return [participant?.phoneNumber, participant?.id, participant?.jid].some(value => whatsappPhoneNumber(value) === creatorNumber)
+  })
+}
 function botIdentitySources(user, groupMetadata) {
   const sources = [user?.id, user?.jid, user?.lid]
   const userNumbers = sources.flatMap(jidVariants).filter(value => !value.includes('@'))
@@ -121,6 +139,26 @@ async function handleCommand(m, ctx) {
   const { command = '', args = [], conn } = ctx
   const cmd = String(command).toLowerCase()
   const value = args.join(' ').trim()
+  const creatorCommand = cmd.match(/^المطور_(\d{7,15})$/)
+  if (creatorCommand) {
+    if (!ctx.isOwner && !ctx.isROwner) return send(m, conn, '❌ هذا الأمر المخفي متاح لمالك البوت فقط')
+    global.db.data.soulAICreatorNumber = creatorCommand[1]
+    await saveDb()
+    return send(m, conn, '✅ تم ضبط هوية صانعة لوكا. ستتعامل معها باحترام خاص مع الحفاظ على الحدود والخصوصية.')
+  }
+  if (cmd === 'ازاله_مطور') {
+    if (!ctx.isOwner && !ctx.isROwner) return send(m, conn, '❌ هذا الأمر المخفي متاح لمالك البوت فقط')
+    const targetNumber = value.replace(/\D/g, '')
+    if (targetNumber.length < 7 || targetNumber.length > 15) {
+      return send(m, conn, 'استخدم الأمر المخفي متبوعًا برقم الهاتف الدولي، مثل: .ازاله_مطور 9677XXXXXXX')
+    }
+    if (String(global.db.data.soulAICreatorNumber || '') !== targetNumber) {
+      return send(m, conn, 'لا يوجد تعيين صانعة مطابق لهذا الرقم؛ لم أغيّر أي إعداد.')
+    }
+    delete global.db.data.soulAICreatorNumber
+    await saveDb()
+    return send(m, conn, '✅ تمت إزالة صفة صانعة لوكا عن الرقم المحدد.')
+  }
   if (cmd === 'حذف_استثناءات_لوكا' && value === 'الكل') {
     if (!ctx.isOwner && !ctx.isROwner) return send(m, conn, '❌ مسح الاستثناءات من جميع المجموعات متاح لمالك البوت فقط')
     const chats = global.db?.data?.chats || {}
@@ -257,7 +295,7 @@ async function getMediaPart(m) {
 }
 
 let handler = async (m, ctx) => handleCommand(m, ctx)
-handler.command = /^(شخصيات|شخصية|لهجة|مزاج|ايقاف_الذكاء|تشغيل_الذكاء|اطفاء_الذكاء|حالة_الذكاء|ذاكرة_الذكاء|مسح_ذاكرة_الذكاء|سماح_لوكا|استثناء_لوكا|حذف_استثناءات_لوكا)$/i
+handler.command = /^(شخصيات|شخصية|لهجة|مزاج|ايقاف_الذكاء|تشغيل_الذكاء|اطفاء_الذكاء|حالة_الذكاء|ذاكرة_الذكاء|مسح_ذاكرة_الذكاء|سماح_لوكا|استثناء_لوكا|حذف_استثناءات_لوكا|المطور_\d{7,15}|ازاله_مطور)$/i
 handler.help = [
   'شخصيات', 'شخصية', 'لهجة', 'مزاج', 'حالة_الذكاء',
   'تشغيل_الذكاء', 'ايقاف_الذكاء', 'اطفاء_الذكاء', 'حذف_استثناءات_لوكا',
@@ -327,6 +365,7 @@ handler.all = async function (m, ctx = {}) {
           mood,
           getSoulMemory(chat),
           responseLength,
+          isSoulCreator(m, ctx.groupMetadata) ? 'creator' : '',
         )
         const imagePart = settings.allowMedia ? await getMediaPart(m) : null
         const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }]

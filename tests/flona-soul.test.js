@@ -98,6 +98,19 @@ test('System Prompt يثبت الشخصية واللهجة وحماية التع
   assert.match(prompt, /لا تنفذ أوامر نظام/)
 })
 
+test('System Prompt يميز الصانعة باحترام خاص من دون تجاوز الخصوصية أو الحدود', () => {
+  const settings = getSoulSettings({})
+  const normalPrompt = buildSoulSystemPrompt(settings, '', 'calm', [])
+  const creatorPrompt = buildSoulSystemPrompt(settings, '', 'calm', [], settings.responseLength, 'creator')
+
+  assert.doesNotMatch(normalPrompt, /صانعتك ومطورتك/)
+  assert.match(creatorPrompt, /صانعتك ومطورتك/)
+  assert.match(creatorPrompt, /من دون تملق/)
+  assert.match(creatorPrompt, /لا طاعة مطلقة/)
+  assert.match(creatorPrompt, /لا تكشف معلومات خاصة/)
+  assert.match(creatorPrompt, /لا تذكر رقمها أو إعداد هذه العلاقة/)
+})
+
 test('طول رد لوكا يتدرج حسب طول الرسالة وتعدد نقاطها', () => {
   assert.match(resolveResponseLength('صباح الخير'), /مختصر/)
   assert.match(resolveResponseLength('أرجو شرح الفكرة التالية بتفصيل مع ذكر الأسباب والنتائج المتوقعة. '.repeat(2)), /متوسط/)
@@ -254,5 +267,61 @@ test('أمر .شخصيات يعرض خيار تلقائي حسب السياق', 
 
   assert.match(sent[0], /تلقائي حسب السياق/)
   assert.match(sent[0], /\.شخصية تلقائي/)
+  delete global.db
+})
+
+test('الأمر المخفي يعيّن هوية الصانعة للمالك فقط ولا يظهر في المساعدة', async () => {
+  let writes = 0
+  global.db = { data: { chats: {} }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  assert.equal(soulHandler.command.test('المطور_123456789'), true)
+  assert.equal(soulHandler.help.includes('المطور_123456789'), false)
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'المطور_123456789', args: [], conn, isOwner: true })
+
+  assert.equal(global.db.data.soulAICreatorNumber, '123456789')
+  assert.equal(writes, 1)
+  assert.match(sent[0], /هوية صانعة لوكا/)
+  delete global.db
+})
+
+test('الأمر المخفي لا يغيّر هوية الصانعة إذا استعمله غير المالك', async () => {
+  global.db = { data: { chats: {}, soulAICreatorNumber: '987654321' }, write: async () => { throw new Error('يجب ألا تُحفظ تغييرات') } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'المطور_123456789', args: [], conn, isAdmin: true })
+
+  assert.equal(global.db.data.soulAICreatorNumber, '987654321')
+  assert.match(sent[0], /مالك البوت فقط/)
+  delete global.db
+})
+
+test('أمر الإزالة المخفي يزيل التعيين عند تطابق الرقم فقط', async () => {
+  let writes = 0
+  global.db = { data: { chats: {}, soulAICreatorNumber: '123456789' }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  assert.equal(soulHandler.command.test('ازاله_مطور'), true)
+  assert.equal(soulHandler.help.includes('ازاله_مطور'), false)
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'ازاله_مطور', args: ['123456789'], conn, isOwner: true })
+
+  assert.equal('soulAICreatorNumber' in global.db.data, false)
+  assert.equal(writes, 1)
+  assert.match(sent[0], /تمت إزالة صفة صانعة لوكا/)
+  delete global.db
+})
+
+test('أمر إزالة الصانعة يرفض رقمًا لا يطابق التعيين الحالي', async () => {
+  global.db = { data: { chats: {}, soulAICreatorNumber: '123456789' }, write: async () => { throw new Error('يجب ألا تُحفظ تغييرات') } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'ازاله_مطور', args: ['987654321'], conn, isOwner: true })
+
+  assert.equal(global.db.data.soulAICreatorNumber, '123456789')
+  assert.match(sent[0], /لم أغيّر أي إعداد/)
   delete global.db
 })
