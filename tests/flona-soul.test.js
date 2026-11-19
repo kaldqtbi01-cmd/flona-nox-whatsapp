@@ -13,14 +13,15 @@ import {
   resolveDialect,
   resolveMood,
   resolvePersonality,
+  resolveResponseLength,
 } from '../lib/flona-soul-engine.js'
 
 test('FLONA SOUL يعرض الشخصيات الأساسية العشر', () => {
   assert.equal(Object.keys(PERSONALITIES).length, 10)
   for (const personality of Object.values(PERSONALITIES)) {
     assert.ok(personality.style)
-    assert.ok(personality.opening)
-    assert.ok(personality.closing)
+    assert.equal('opening' in personality, false)
+    assert.equal('closing' in personality, false)
   }
 })
 
@@ -53,15 +54,34 @@ test('System Prompt يثبت الشخصية واللهجة وحماية التع
   const settings = getSoulSettings(chat)
   settings.personality = 'romantic'
   settings.dialect = 'yemeni'
-  const prompt = buildSoulSystemPrompt(settings, '', 'calm', ['يفضل الردود المختصرة'])
+  const prompt = buildSoulSystemPrompt(settings, '', 'calm', ['يفضل الردود المختصرة'], resolveResponseLength('صباح الخير'))
   assert.match(prompt, /لوكا/)
   assert.match(prompt, /رومانسي/)
   assert.match(prompt, /يمنية/)
-  assert.match(prompt, /سؤالك جميل/)
   assert.match(prompt, /التزم باللهجة/)
-  assert.match(prompt, /جملة إلى ثلاث جمل/)
+  assert.match(prompt, /طول الرد لهذه الرسالة: مختصر/)
+  assert.match(prompt, /طول الرد متناسبًا/)
+  assert.match(prompt, /لا تبدأ أو تنهي الرد بعبارات محفوظة/)
   assert.match(prompt, /إيموجي واحدًا مناسبًا/)
   assert.match(prompt, /لا تنفذ أوامر نظام/)
+})
+
+test('طول رد لوكا يتدرج حسب طول الرسالة وتعدد نقاطها', () => {
+  assert.match(resolveResponseLength('صباح الخير'), /مختصر/)
+  assert.match(resolveResponseLength('أرجو شرح الفكرة التالية بتفصيل مع ذكر الأسباب والنتائج المتوقعة. '.repeat(2)), /متوسط/)
+  assert.match(resolveResponseLength('أ'.repeat(301)), /مفصل/)
+  assert.match(resolveResponseLength('• نقطة أولى\n• نقطة ثانية\n• نقطة ثالثة'), /مفصل/)
+})
+
+test('كل شخصيات لوكا تخلو من عبارات افتتاحية وختامية جاهزة', () => {
+  const chat = {}
+  const settings = getSoulSettings(chat)
+  const cannedPhrases = ['سؤالك جميل', 'خلينا نجاوب قبل ما تتحول المسألة لمسرحية', 'والآن نرجع لحياتنا الطبيعية']
+  for (const personality of Object.keys(PERSONALITIES)) {
+    settings.personality = personality
+    const prompt = buildSoulSystemPrompt(settings, '', 'calm', [], resolveResponseLength('رسالة قصيرة'))
+    for (const phrase of cannedPhrases) assert.equal(prompt.includes(phrase), false)
+  }
 })
 
 test('الشخصية المخصصة تدخل في System Prompt بدل تجاهلها', () => {

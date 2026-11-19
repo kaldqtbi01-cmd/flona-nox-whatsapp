@@ -16,6 +16,7 @@ import {
   resolveDialect,
   resolveMood,
   resolvePersonality,
+  resolveResponseLength,
 } from '../lib/flona-soul-engine.js'
 
 const IN_FLIGHT = new Map()
@@ -257,7 +258,7 @@ handler.all = async function (m, ctx = {}) {
   if (!settings.enabled || settings.paused) return
   if (settings.allowUsers && !settings.allowUsers.includes(m.sender)) return
   if (settings.excludedUsers.includes(m.sender)) return
-  settings.responseLength = 'short'
+  const responseLength = resolveResponseLength(text)
   if (!withinRate(m.chat, settings)) return
   if (IN_FLIGHT.has(m.chat)) return
   IN_FLIGHT.set(m.chat, true)
@@ -280,7 +281,13 @@ handler.all = async function (m, ctx = {}) {
       dialect: dialect.instruction,
       mood: MOODS[mood],
     })
-    const systemInstruction = buildSoulSystemPrompt(settings, settings.dialect === 'auto' ? '' : dialect.instruction, mood, getSoulMemory(chat))
+    const systemInstruction = buildSoulSystemPrompt(
+      settings,
+      settings.dialect === 'auto' ? '' : dialect.instruction,
+      mood,
+      getSoulMemory(chat),
+      responseLength,
+    )
     const imagePart = settings.allowMedia ? await getMediaPart(m) : null
     const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }]
     let result
