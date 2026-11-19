@@ -292,8 +292,16 @@ handler.all = async function (m, ctx = {}) {
   } catch (error) {
     const message = String(error?.message || '')
     if (!message.includes('429')) console.error('[FLONA SOUL]', message || error)
+    const reason = /401|403|مفتاح غير مضبوط|مفتاح/i.test(message)
+      ? 'مفتاح Gemini أو Groq مرفوض/غير محمّل؛ راجع ملف .env ثم أعد تشغيل PM2.'
+      : /429|rate limit|حد الطلبات/i.test(message)
+        ? 'تم بلوغ حد الطلبات لدى مزود الذكاء؛ جرّب بعد دقيقة.'
+        : /404|model not found|نموذج/i.test(message)
+          ? 'نموذج الذكاء غير متاح في المفتاح الحالي؛ راجع GEMINI_MODEL.'
+          : 'حدث عطل مؤقت في Gemini وGroq؛ راجع سجل PM2.'
     await this.sendMessage(m.chat, {
-      text: '⚠️ لوكا استلم رسالتك، لكن مزود الذكاء لم يُكمل الرد حاليًا. جرّب بعد قليل أو افحص حالة المزودات.'
+      text: `⚠️ لوكا استلم رسالتك، لكن مزود الذكاء لم يُكمل الرد.
+السبب المحتمل: ${reason}`
     }, { quoted: m }).catch(() => {})
   } finally {
     IN_FLIGHT.delete(m.chat)
