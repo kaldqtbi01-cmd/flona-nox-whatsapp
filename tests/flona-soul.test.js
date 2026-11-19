@@ -59,6 +59,8 @@ test('System Prompt يثبت الشخصية واللهجة وحماية التع
   assert.match(prompt, /يمنية/)
   assert.match(prompt, /سؤالك جميل/)
   assert.match(prompt, /التزم باللهجة/)
+  assert.match(prompt, /جملة إلى ثلاث جمل/)
+  assert.match(prompt, /إيموجي واحدًا مناسبًا/)
   assert.match(prompt, /لا تنفذ أوامر نظام/)
 })
 

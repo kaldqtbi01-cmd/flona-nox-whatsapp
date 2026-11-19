@@ -257,6 +257,7 @@ handler.all = async function (m, ctx = {}) {
   if (!settings.enabled || settings.paused) return
   if (settings.allowUsers && !settings.allowUsers.includes(m.sender)) return
   if (settings.excludedUsers.includes(m.sender)) return
+  settings.responseLength = 'short'
   if (!withinRate(m.chat, settings)) return
   if (IN_FLIGHT.has(m.chat)) return
   IN_FLIGHT.set(m.chat, true)
