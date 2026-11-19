@@ -125,3 +125,60 @@ test('بلوقن لوكا لا يرد على الرسالة العادية دا�
   assert.equal(sent, 0)
   delete global.db
 })
+
+test('أمر حذف استثناءات لوكا يمسح جميع المجموعات للمالك فقط ويحافظ على بقية الإعدادات', async () => {
+  let writes = 0
+  const chats = {
+    '111@g.us': { soulAI: { excludedUsers: ['a@s.whatsapp.net', 'b@s.whatsapp.net'], allowUsers: ['c@s.whatsapp.net'], enabled: true } },
+    '222@g.us': { soulAI: { excludedUsers: ['d@s.whatsapp.net'], allowUsers: null, personality: 'wise' } },
+    '333@s.whatsapp.net': { soulAI: { excludedUsers: ['private@s.whatsapp.net'] } },
+  }
+  global.db = { data: { chats }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'حذف_استثناءات_لوكا', args: ['الكل'], conn, isOwner: true })
+
+  assert.deepEqual(chats['111@g.us'].soulAI.excludedUsers, [])
+  assert.deepEqual(chats['222@g.us'].soulAI.excludedUsers, [])
+  assert.deepEqual(chats['111@g.us'].soulAI.allowUsers, ['c@s.whatsapp.net'])
+  assert.equal(chats['111@g.us'].soulAI.enabled, true)
+  assert.deepEqual(chats['222@g.us'].soulAI.personality, 'wise')
+  assert.deepEqual(chats['333@s.whatsapp.net'].soulAI.excludedUsers, ['private@s.whatsapp.net'])
+  assert.equal(writes, 1)
+  assert.match(sent[0], /3 استثناء من 2 مجموعة/)
+  delete global.db
+})
+
+test('أمر مسح الاستثناءات من كل المجموعات مرفوض لغير مالك البوت', async () => {
+  const chats = { '111@g.us': { soulAI: { excludedUsers: ['a@s.whatsapp.net'] } } }
+  global.db = { data: { chats }, write: async () => { throw new Error('يجب ألا تُحفظ تغييرات') } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'حذف_استثناءات_لوكا', args: ['الكل'], conn, isAdmin: true })
+
+  assert.deepEqual(chats['111@g.us'].soulAI.excludedUsers, ['a@s.whatsapp.net'])
+  assert.match(sent[0], /مالك البوت فقط/)
+  delete global.db
+})
+
+test('أمر حذف استثناءات لوكا بدون كلمة الكل يمسح المجموعة الحالية فقط', async () => {
+  let writes = 0
+  const chats = {
+    '111@g.us': { soulAI: { excludedUsers: ['a@s.whatsapp.net'], allowUsers: ['b@s.whatsapp.net'] } },
+    '222@g.us': { soulAI: { excludedUsers: ['c@s.whatsapp.net'] } },
+  }
+  global.db = { data: { chats }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'حذف_استثناءات_لوكا', args: [], conn, isAdmin: true })
+
+  assert.deepEqual(chats['111@g.us'].soulAI.excludedUsers, [])
+  assert.deepEqual(chats['111@g.us'].soulAI.allowUsers, ['b@s.whatsapp.net'])
+  assert.deepEqual(chats['222@g.us'].soulAI.excludedUsers, ['c@s.whatsapp.net'])
+  assert.equal(writes, 1)
+  assert.match(sent[0], /هذه المجموعة فقط/)
+  delete global.db
+})

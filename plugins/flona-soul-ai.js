@@ -120,11 +120,28 @@ async function handleCommand(m, ctx) {
   if (!m.isGroup) return m.reply?.('❌ أوامر لوكا للمجموعات فقط')
   const { command = '', args = [], conn } = ctx
   const cmd = String(command).toLowerCase()
+  const value = args.join(' ').trim()
+  if (cmd === 'حذف_استثناءات_لوكا' && value === 'الكل') {
+    if (!ctx.isOwner && !ctx.isROwner) return send(m, conn, '❌ مسح الاستثناءات من جميع المجموعات متاح لمالك البوت فقط')
+    const chats = global.db?.data?.chats || {}
+    let groupsCleared = 0
+    let entriesCleared = 0
+    for (const [chatId, group] of Object.entries(chats)) {
+      if (!chatId.endsWith('@g.us')) continue
+      const settings = group?.soulAI
+      if (!settings || !Array.isArray(settings.excludedUsers) || settings.excludedUsers.length === 0) continue
+      entriesCleared += settings.excludedUsers.length
+      groupsCleared += 1
+      settings.excludedUsers = []
+    }
+    if (entriesCleared) await saveDb()
+    return send(m, conn, `✅ تم مسح ${entriesCleared} استثناء من ${groupsCleared} مجموعة. لم تتغير قوائم السماح أو بقية الإعدادات.`)
+  }
+  if (cmd === 'حذف_استثناءات_لوكا' && value) return send(m, conn, 'استخدم .حذف_استثناءات_لوكا لمسح استثناءات هذه المجموعة، أو .حذف_استثناءات_لوكا الكل لمالك البوت')
   const chat = getChat(m)
   const settings = getSoulSettings(chat)
-  const value = args.join(' ').trim()
 
-  const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا'])
+  const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا', 'حذف_استثناءات_لوكا'])
   if (adminCommands.has(cmd) && !adminOnly(ctx)) return m.reply?.('❌ هذا الأمر للأدمن فقط')
 
   if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدم: .شخصية حكيم`)
@@ -212,6 +229,14 @@ async function handleCommand(m, ctx) {
     await saveDb()
     return send(m, conn, '✅ تمت إضافة العضو إلى قائمة الاستثناء')
   }
+  if (cmd === 'حذف_استثناءات_لوكا') {
+    const count = settings.excludedUsers.length
+    settings.excludedUsers = []
+    if (count) await saveDb()
+    return send(m, conn, count
+      ? `✅ تم مسح ${count} استثناء من هذه المجموعة فقط.`
+      : 'لا توجد استثناءات محفوظة في هذه المجموعة.')
+  }
 }
 
 async function getMediaPart(m) {
@@ -227,10 +252,10 @@ async function getMediaPart(m) {
 }
 
 let handler = async (m, ctx) => handleCommand(m, ctx)
-handler.command = /^(شخصيات|شخصية|لهجة|مزاج|ايقاف_الذكاء|تشغيل_الذكاء|اطفاء_الذكاء|حالة_الذكاء|ذاكرة_الذكاء|مسح_ذاكرة_الذكاء|سماح_لوكا|استثناء_لوكا)$/i
+handler.command = /^(شخصيات|شخصية|لهجة|مزاج|ايقاف_الذكاء|تشغيل_الذكاء|اطفاء_الذكاء|حالة_الذكاء|ذاكرة_الذكاء|مسح_ذاكرة_الذكاء|سماح_لوكا|استثناء_لوكا|حذف_استثناءات_لوكا)$/i
 handler.help = [
   'شخصيات', 'شخصية', 'لهجة', 'مزاج', 'حالة_الذكاء',
-  'تشغيل_الذكاء', 'ايقاف_الذكاء', 'اطفاء_الذكاء',
+  'تشغيل_الذكاء', 'ايقاف_الذكاء', 'اطفاء_الذكاء', 'حذف_استثناءات_لوكا',
   'ذاكرة_الذكاء', 'مسح_ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا',
 ]
 handler.tags = ['soul']
