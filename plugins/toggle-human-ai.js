@@ -1,27 +1,32 @@
+import { getSoulSettings } from '../lib/flona-soul-engine.js'
+
 let handler = async (m, { conn, isAdmin, isROwner, isOwner, command }) => {
   if (!m.isGroup) return m.reply('❌ للمجموعات فقط')
   if (!isAdmin && !isROwner && !isOwner) return m.reply('❌ للأدمن فقط')
 
+  global.db.data ||= {}
   global.db.data.chats ||= {}
-  const chats = global.db.data.chats
-  const chat = chats[m.chat] ||= {}
+  const chat = global.db.data.chats[m.chat] ||= {}
+  const settings = getSoulSettings(chat)
   const cmd = String(command || '').toLowerCase()
 
   if (cmd === 'يورو_ايقاف' || cmd === 'yoru_off') {
-    chat.humanAI = false
+    settings.paused = true
   } else if (cmd === 'يورو_تفعيل' || cmd === 'تفعيل_يورو' || cmd === 'yoru_on') {
-    chat.humanAI = true
+    settings.enabled = true
+    settings.paused = false
   } else {
-    // الأمر العام human_ai يبقى مفتاح تبديل.
-    chat.humanAI = !chat.humanAI
+    settings.enabled = !settings.enabled
+    settings.paused = false
   }
 
   await global.db.write()
-
   await conn.sendMessage(m.chat, {
-    text: chat.humanAI
-      ? `✅ *تم تفعيل يورو*\n\nسترد فقط عند منشنها أو الرد على رسالتها`
-      : `❌ *تم إيقاف وضع الإنسان الذكي*`,
+    text: settings.enabled && !settings.paused
+      ? `✅ تم تشغيل لوكا\n\nيرد فقط عند منشنه أو الرد على رسالته`
+      : settings.paused
+        ? `⏸️ تم إيقاف ردود لوكا مؤقتًا مع الاحتفاظ بالإعدادات`
+        : `❌ تم إطفاء لوكا في هذه المجموعة`,
   }, { quoted: m })
 }
 
