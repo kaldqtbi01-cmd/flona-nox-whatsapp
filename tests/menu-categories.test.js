@@ -13,6 +13,7 @@ test('legacy tags normalize to the ten canonical menu sections', () => {
     main: ['main', 'info'],
     owner: ['owner', 'serbot'],
     ai: ['ai'],
+    soul: ['soul', 'flona soul', 'لوكا', 'لوكا سول'],
     anime: ['anime'],
     economy: ['economy', 'daily'],
     games: ['game', 'games', 'fun', 'ترفيه'],
@@ -22,7 +23,7 @@ test('legacy tags normalize to the ten canonical menu sections', () => {
     tools: ['tools', 'herramientas', 'utils', 'قسم الأدوات🛠️', 'misc']
   }
 
-  assert.equal(Object.keys(MENU_SECTIONS).length, 10)
+  assert.equal(Object.keys(MENU_SECTIONS).length, 11)
   for (const [canonical, tags] of Object.entries(aliases)) {
     for (const tag of tags) assert.equal(normalizeMenuSection(tag), canonical, `${tag} → ${canonical}`)
     assert.equal(normalizeMenuSection(tagS(tags[0])), canonical)
@@ -88,6 +89,7 @@ test('all newly exposed command labels have an explicit, complete section assign
     main: 13,
     owner: 10,
     ai: 0,
+    soul: 0,
     anime: 3,
     economy: 0,
     games: 8,
