@@ -22,7 +22,7 @@ const MAX_HISTORY      = 30     // Messages to remember
 const MAX_USER_MEMORY  = 10    // Per-user facts to remember
 const COOLDOWN_MS      = 3000  // Min time between replies
 const REPLY_WINDOW     = 60000 // 1 minute window for reply counting
-const MAX_REPLIES_WINDOW = 12  // Deterministic auto-reply, bounded to avoid spam
+const MAX_REPLIES_WINDOW = 12  // Direct mentions/replies only
 
 // ── Moods ──────────────────────────────────
 const MOODS = {
@@ -77,7 +77,7 @@ const SYSTEM_PROMPT = `
 
 ## لما حد يكلمك:
 - ردي بكلام قصير وطبيعي ومناسب لمعنى الرسالة
-- إذا كان المقصود غير واضح، اسألي سؤال توضيح قصيرًا بدل التخمين
+- استنتجي أقرب معنى من سياق المحادثة وأجيبي عليه مباشرة؛ لا تطلبي التوضيح إلا إذا كانت الرسالة بلا معنى فعلًا
 - إذا احتوت الرسالة نقاطًا كثيرة، أجيبي عن الأهم بوضوح
 - إذا أرسل الشخص رسالة طويلة، لخّصي المطلوب ثم أجيبي باختصار
 
@@ -85,7 +85,6 @@ const SYSTEM_PROMPT = `
 - "إيش؟" / "ايوا" / "لا" / "ما أدري" / "تمام 🙂"
 - "تقصد جد؟" / "طيب ماشي"
 - "قل لي" / "في إيش؟" / "يعني كيف؟"
-- "مو فاهمة قصدك"
 - "اها" / "أوكي" / "ماشي"
 
 ## MOOD الحالي:
@@ -180,13 +179,6 @@ function triggerMood(chatId, trigger) {
 //  Detection Functions
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function isMentioned(text) {
-  if (!text) return false
-  const lower = text.toLowerCase()
-  return BOT_NAMES.some(n => lower.includes(n.toLowerCase())) ||
-         BOT_NICKNAMES.some(n => lower.includes(n.toLowerCase()))
-}
-
 function isQuestion(text) {
   return /\?|؟|ليه|ازاي|مين|ايه|فين|امتى|كم|هل |ولا /i.test(text)
 }
@@ -205,8 +197,19 @@ function isSticker(m) {
 
 function isReplyToBot(m, botId) {
   const quoted = m.message?.extendedTextMessage?.contextInfo
-  if (!quoted?.participant) return false
+  if (!quoted?.participant || !botId) return false
   return quoted.participant.includes(botId)
+}
+
+function isBotMentioned(m, botId) {
+  if (!botId) return false
+  const mentions = m.mentionedJid ||
+    m.msg?.contextInfo?.mentionedJid ||
+    m.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
+  const botNumber = String(botId).split(':')[0].split('@')[0]
+  return Array.isArray(mentions) && mentions.some(jid =>
+    String(jid).split(':')[0].split('@')[0] === botNumber
+  )
 }
 
 function isSkip(text) {
@@ -258,12 +261,12 @@ function getFallback(text, mood) {
   if (/عامل|عاملة|اخبار/i.test(text)) return pick(['تمام 🙂', 'كويسة 😌', 'عادي الحمد لله'])
   if (/اتكلم|تكلمي|ردي/i.test(text)) return pick(['قول، أسمعك 👀', 'إيش عندك؟ 🙂', 'تفضل'])
 
-  if (mood === 'annoyed') return pick(['مو فاهمة قصدك 🙄', 'وضح لي أكثر 😑'])
+  if (mood === 'annoyed') return pick(['اها، فهمت عليك 🙄', 'تمام، كملي 😑'])
   if (mood === 'bored') return pick(['اها 😶', 'ماشي 🙂', 'أوكي'])
-  if (mood === 'curious') return pick(['تقصد إيش؟ 🤔', 'وضح لي أكثر 👀'])
+  if (mood === 'curious') return pick(['تقصد كذا؟ 🤔', 'اها، كملي فكرتك 👀'])
   if (mood === 'amused') return pick(['ايه الحلو 😂', 'اها 😏', 'طب ماشي 🙂'])
 
-  return pick(['ما فهمت قصدك بالضبط، وضح لي شوي 🤔', 'ما عندي إجابة دقيقة الآن 😅'])
+  return pick(['اها فهمت عليك، كملي 👀', 'تمام، خذ راحتك واحكي اللي عندك', 'ايوا، أنا معك — كمل', 'فهمت جزء من كلامك، نكمل من هنا 😏'])
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -300,8 +303,9 @@ async function simulateTyping(conn, chatId, text) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function shouldRespond(text, chatId, mentioned, isReply, mood) {
+  if (!mentioned && !isReply) return { respond: false, reason: 'not-directed' }
   if (!canReply(chatId)) return { respond: false, reason: 'cooldown' }
-  return { respond: true, reason: mentioned || isReply ? 'direct' : 'automatic' }
+  return { respond: true, reason: 'direct' }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -340,7 +344,7 @@ function buildContext(chatId, senderId, senderName, text, mentioned, isReply, mo
       `استخدمي إيموجي مناسبًا إذا كان الرد خفيفًا، بدون مبالغة.`,
       `جملة واحدة قصيرة بلهجة عربية محكية مناسبة للمجموعة.`,
       `لو سألك سؤال — جاوبيه.`,
-      `لو قال حاجة مش مفهومة — اسأليه.`
+      `لو كانت العبارة ناقصة لكن لها معنى محتمل — استنتجي أقرب معنى وأجيبي مباشرة، ولا تقولي وضح لي أكثر إلا إذا كانت بلا معنى فعلًا.`
     ].join('\n')
   } else {
     prompt = [
@@ -467,12 +471,12 @@ handler.all = async function (m) {
     if (!text && !isSticker(m)) return
 
     // ── Detection ──
-    const mentioned = text ? isMentioned(text) : false
+    const mentioned = isBotMentioned(m, botId)
     const isReply = isReplyToBot(m, botId)
     const mood = getCurrentMood(chatId)
 
     // ── Sticker response (rare) ──
-    if (isSticker(m) && !mentioned) {
+    if (isSticker(m) && !mentioned && !isReply) {
       if (Math.random() < 0.05) { // 5% chance
         await simulateTyping(this, chatId, 'اها')
         await this.sendMessage(chatId, { text: '🙄' })

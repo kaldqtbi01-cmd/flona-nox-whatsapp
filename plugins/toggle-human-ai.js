@@ -20,7 +20,7 @@ let handler = async (m, { conn, isAdmin, isROwner, isOwner, command }) => {
 
   await conn.sendMessage(m.chat, {
     text: chat.humanAI
-      ? `✅ *تم تفعيل وضع الإنسان الذكي*\n\nيورو هيشارك في المحادثة بشكل طبيعي`
+      ? `✅ *تم تفعيل يورو*\n\nسترد فقط عند منشنها أو الرد على رسالتها`
       : `❌ *تم إيقاف وضع الإنسان الذكي*`,
   }, { quoted: m })
 }
