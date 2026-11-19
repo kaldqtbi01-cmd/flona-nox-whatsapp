@@ -120,3 +120,29 @@ test('ينقح أخطاء المزود ولا يعيد المفتاح', async ()
     return true
   })
 })
+
+test('المحادثة الحساسة للوقت تتوقف عند أول فشل مؤقت لـGemini لتنتقل إلى fallback', async () => {
+  const calls = []
+  const api = createAIProviders({
+    env: { GROQ_API_KEY: 'groq-secret', GEMINI_API_KEY: 'gemini-secret' },
+    fetchImpl: async (url) => {
+      calls.push(url)
+      return response({ error: { message: 'rate limit' } }, 429)
+    },
+  })
+  await assert.rejects(api.geminiGenerate({ contents: [{ role: 'user', parts: [{ text: 'سؤال' }] }], fastFailover: true }), /HTTP 429/)
+  assert.equal(calls.length, 1)
+})
+
+test('يسمح بتحديد مهلة Groq وعدد محاولاته لكل طلب', async () => {
+  let calls = 0
+  const api = createAIProviders({
+    env: { GROQ_API_KEY: 'groq-secret', GEMINI_API_KEY: '' },
+    fetchImpl: async () => {
+      calls += 1
+      return response({ error: { message: 'temporary' } }, 503)
+    },
+  })
+  await assert.rejects(api.groqChat({ messages: [{ role: 'user', content: 'سؤال' }], timeoutMs: 100, retries: 0 }), /HTTP 503/)
+  assert.equal(calls, 1)
+})

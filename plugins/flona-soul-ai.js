@@ -293,10 +293,12 @@ handler.all = async function (m, ctx = {}) {
   if (!withinRate(m.chat, settings)) return
   const connection = this
   const quoted = replied ? quotedText(m) : ''
+  const enqueuedAt = Date.now()
 
   try {
     return await CHAT_QUEUE.run(m.chat, async () => {
       try {
+        const queueWaitMs = Date.now() - enqueuedAt
         const senderName = m.pushName || m.sender?.split('@')[0] || 'العضو'
         if (!text && m.message?.audioMessage) {
           await connection.sendMessage(m.chat, { text: 'أقدر فهم النص والصور حاليًا، لكن تحويل الصوت إلى نص غير متاح في هذه النسخة بعد.' }, { quoted: m })
@@ -324,10 +326,21 @@ handler.all = async function (m, ctx = {}) {
         const imagePart = settings.allowMedia ? await getMediaPart(m) : null
         const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }]
         let result
+        const aiStartedAt = Date.now()
         try {
-          result = await aiProviders.geminiGenerate({ contents: [{ role: 'user', parts }], systemInstruction, temperature: 0.65, maxTokens: 500 })
+          result = await aiProviders.geminiGenerate({ contents: [{ role: 'user', parts }], systemInstruction, temperature: 0.65, maxTokens: 500, fastFailover: true })
         } catch {
-          result = await aiProviders.ask({ task: 'chat', messages: [{ role: 'user', content: prompt }], systemInstruction, temperature: 0.65, maxTokens: 500, fallback: true })
+          result = await aiProviders.groqChat({
+            messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
+            temperature: 0.65,
+            maxTokens: 500,
+            timeoutMs: 12_000,
+            retries: 0,
+          })
+        }
+        const aiDurationMs = Date.now() - aiStartedAt
+        if (queueWaitMs > 2_000 || aiDurationMs > 5_000) {
+          console.warn(`[FLONA SOUL] slow response: queue=${queueWaitMs}ms ai=${aiDurationMs}ms provider=${result?.provider || 'unknown'}`)
         }
         const reply = String(result?.text || '').trim()
         if (!reply || isRepeatedReply(settings, reply)) return
