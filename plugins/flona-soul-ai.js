@@ -32,6 +32,8 @@ function ensureDb() {
   return global.db.data.chats
 }
 
+const GLOBAL_STYLE_KEYS = Object.freeze(['personality', 'customPersonality', 'dialect', 'mood', 'sarcasm', 'emotion', 'intensity'])
+
 function getChat(m) {
   const chats = ensureDb()
   return chats[m.chat] ||= {}
@@ -134,6 +136,32 @@ async function send(m, conn, text) {
   return conn.sendMessage(m.chat, { text }, { quoted: m })
 }
 
+function getEffectiveSoulSettings(chat) {
+  const settings = getSoulSettings(chat)
+  const shared = global.db?.data?.soulAIGlobalStyle
+  if (shared && typeof shared === 'object') {
+    for (const key of GLOBAL_STYLE_KEYS) {
+      if (Object.hasOwn(shared, key)) settings[key] = shared[key]
+    }
+  }
+  return settings
+}
+
+function updateGlobalSoulStyle(chat, changes) {
+  const db = global.db.data
+  const current = getEffectiveSoulSettings(chat)
+  db.soulAIGlobalStyle ||= Object.fromEntries(GLOBAL_STYLE_KEYS.map(key => [key, current[key]]))
+  Object.assign(db.soulAIGlobalStyle, changes)
+  for (const group of Object.values(db.chats || {})) {
+    if (!group?.soulAI || typeof group.soulAI !== 'object') continue
+    for (const key of GLOBAL_STYLE_KEYS) {
+      if (Object.hasOwn(db.soulAIGlobalStyle, key)) group.soulAI[key] = db.soulAIGlobalStyle[key]
+    }
+  }
+  Object.assign(getSoulSettings(chat), db.soulAIGlobalStyle)
+  return getEffectiveSoulSettings(chat)
+}
+
 async function handleCommand(m, ctx) {
   if (!m.isGroup) return m.reply?.('❌ أوامر لوكا للمجموعات فقط')
   const { command = '', args = [], conn } = ctx
@@ -177,56 +205,55 @@ async function handleCommand(m, ctx) {
   }
   if (cmd === 'حذف_استثناءات_لوكا' && value) return send(m, conn, 'استخدم .حذف_استثناءات_لوكا لمسح استثناءات هذه المجموعة، أو .حذف_استثناءات_لوكا الكل لمالك البوت')
   const chat = getChat(m)
-  const settings = getSoulSettings(chat)
+  const settings = getEffectiveSoulSettings(chat)
 
   const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا', 'حذف_استثناءات_لوكا'])
   if (adminCommands.has(cmd) && !adminOnly(ctx)) return m.reply?.('❌ هذا الأمر للأدمن فقط')
 
   if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدم: .شخصية حكيم\nأو: .شخصية تلقائي للاختيار حسب سياق الكلام`)
   if (cmd === 'شخصية') {
-    if (!value) return send(m, conn, `الشخصية الحالية: ${getActivePersonality(settings).label}\nاستخدم .شخصية تلقائي للاختيار حسب سياق الكلام، أو .شخصيات لعرض القائمة`)
+    if (!value) return send(m, conn, `الشخصية العامة الحالية: ${getActivePersonality(settings).label}\nهذا الإعداد مشترك بين المجموعات.\nاستخدم .شخصية تلقائي للاختيار حسب سياق الكلام، أو .شخصيات لعرض القائمة`)
     if (value.startsWith('مخصصة ')) {
       const custom = value.slice('مخصصة '.length).trim()
       if (custom.length < 5) return send(m, conn, '❌ اكتب وصفًا أطول للشخصية المخصصة')
-      settings.personality = 'custom'
-      settings.customPersonality = custom.slice(0, 500)
-      settings.enabled = true
+      updateGlobalSoulStyle(chat, { personality: 'custom', customPersonality: custom.slice(0, 500) })
+      getSoulSettings(chat).enabled = true
       await saveDb()
-      return send(m, conn, '✅ تم حفظ الشخصية المخصصة وتفعيلها لهذه المجموعة')
+      return send(m, conn, '✅ تم حفظ الشخصية المخصصة كإعداد عام للوكا وتفعيلها في هذه المجموعة')
     }
     const key = resolvePersonality(value)
     if (!key) return send(m, conn, '❌ الشخصية غير موجودة. استخدم .شخصيات')
-    settings.personality = key
+    const personalityChanges = { personality: key }
     if (key === 'auto') {
-      settings.enabled = true
+      updateGlobalSoulStyle(chat, personalityChanges)
+      getSoulSettings(chat).enabled = true
       await saveDb()
-      return send(m, conn, '✅ تم تفعيل الشخصية التلقائية للوكا؛ ستختار الأسلوب الأنسب لكل رسالة بحسب سياقها، مع الحفاظ على اللهجة المحددة. يمكنك الرجوع لأي شخصية ثابتة مثل: .شخصية حكيم')
+      return send(m, conn, '✅ تم جعل الشخصية التلقائية إعدادًا عامًا؛ ستختار لوكا الأسلوب الأنسب في كل مجموعة مفعّلة، مع الحفاظ على اللهجة المحددة. للرجوع لشخصية ثابتة: .شخصية حكيم')
     }
     const selected = PERSONALITIES[key]
     if (selected?.sliders) {
-      settings.sarcasm = selected.sliders.sarcasm
-      settings.emotion = selected.sliders.emotion
-      settings.intensity = selected.sliders.intensity
+      Object.assign(personalityChanges, selected.sliders)
     }
-    settings.enabled = true
+    updateGlobalSoulStyle(chat, personalityChanges)
+    getSoulSettings(chat).enabled = true
     await saveDb()
-    return send(m, conn, `✅ تم اختيار شخصية لوكا: ${PERSONALITIES[key].label}`)
+    return send(m, conn, `✅ تم اختيار شخصية لوكا العامة: ${PERSONALITIES[key].label} — ستُطبق في كل المجموعات التي تعمل فيها لوكا`)
   }
   if (cmd === 'لهجة') {
-    if (!value || value === 'الحالية') return send(m, conn, `🗣️ اللهجة الحالية: ${DIALECTS[settings.dialect]?.label || settings.dialect}\n\n${listLines(DIALECTS)}\n\nمثال: .لهجة يمني`)
+    if (!value || value === 'الحالية') return send(m, conn, `🗣️ اللهجة العامة الحالية: ${DIALECTS[settings.dialect]?.label || settings.dialect}\nالإعداد مشترك بين المجموعات.\n\n${listLines(DIALECTS)}\n\nمثال: .لهجة يمني`)
     const key = resolveDialect(value)
     if (!key) return send(m, conn, '❌ اللهجة غير موجودة. استخدم .لهجة لعرض القائمة')
-    settings.dialect = key
+    updateGlobalSoulStyle(chat, { dialect: key })
     await saveDb()
-    return send(m, conn, `✅ تم ضبط لهجة لوكا على: ${DIALECTS[key].label}`)
+    return send(m, conn, `✅ تم ضبط لهجة لوكا العامة على: ${DIALECTS[key].label} في كل المجموعات`)
   }
   if (cmd === 'مزاج') {
-    if (!value || value === 'الحالية') return send(m, conn, `🧠 المزاج الحالي: ${settings.mood === 'auto' ? 'تلقائي' : MOODS[settings.mood]}\n\nالمتاح: ${Object.keys(MOODS).map(key => MOODS[key]).join('، ')}`)
+    if (!value || value === 'الحالية') return send(m, conn, `🧠 المزاج العام الحالي: ${settings.mood === 'auto' ? 'تلقائي' : MOODS[settings.mood]}\nالإعداد مشترك بين المجموعات.\n\nالمتاح: ${Object.keys(MOODS).map(key => MOODS[key]).join('، ')}`)
     const key = resolveMood(value)
     if (!key) return send(m, conn, '❌ المزاج غير موجود. مثال: .مزاج سعيد أو .مزاج تلقائي')
-    settings.mood = key
+    updateGlobalSoulStyle(chat, { mood: key })
     await saveDb()
-    return send(m, conn, `✅ تم ضبط مزاج لوكا على: ${key === 'auto' ? 'تلقائي' : MOODS[key]}`)
+    return send(m, conn, `✅ تم ضبط مزاج لوكا العام على: ${key === 'auto' ? 'تلقائي' : MOODS[key]} في كل المجموعات`)
   }
   if (cmd === 'ايقاف_الذكاء') {
     settings.paused = true
@@ -255,7 +282,7 @@ async function handleCommand(m, ctx) {
     return send(m, conn, memory.length ? `🧠 ذاكرة لوكا:\n${memory.map(item => `• ${item}`).join('\n')}` : '🧠 لا توجد ذاكرة محفوظة مفيدة لهذه المجموعة')
   }
   if (cmd === 'حالة_الذكاء') {
-    return send(m, conn, `🤖 FLONA SOUL AI — لوكا\nالحالة: ${settings.enabled ? (settings.paused ? 'مجمّدة' : 'مفعّلة') : 'متوقفة'}\nالشخصية: ${getActivePersonality(settings).label}\nاللهجة: ${DIALECTS[settings.dialect]?.label}\nالمزاج: ${settings.mood === 'auto' ? 'تلقائي' : MOODS[settings.mood]}\nالذاكرة: ${settings.memoryEnabled ? 'مفعّلة' : 'متوقفة'}\nالمزود الأساسي: Gemini Flash 3.1\nالاحتياطي: Groq`)
+    return send(m, conn, `🤖 FLONA SOUL AI — لوكا\nالحالة: ${settings.enabled ? (settings.paused ? 'مجمّدة' : 'مفعّلة') : 'متوقفة'}\nالشخصية: ${getActivePersonality(settings).label}\nاللهجة: ${DIALECTS[settings.dialect]?.label}\nالمزاج: ${settings.mood === 'auto' ? 'تلقائي' : MOODS[settings.mood]}\nنطاق الشخصية والمزاج واللهجة: عام (في كل المجموعات)\nالذاكرة: ${settings.memoryEnabled ? 'مفعّلة' : 'متوقفة'}\nالمزود الأساسي: Gemini Flash 3.1\nالاحتياطي: Groq`)
   }
   if (cmd === 'سماح_لوكا') {
     const jid = m.mentionedJid?.[0]
@@ -326,7 +353,7 @@ handler.all = async function (m, ctx = {}) {
   }
 
   const chat = getChat(m)
-  const settings = getSoulSettings(chat)
+  const settings = getEffectiveSoulSettings(chat)
   // ترحيل تفعيل يورو القديم إلى لوكا مرة واحدة بدون كسر إعدادات المجموعات الحالية.
   if (chat.humanAI === true && settings.enabled === false) settings.enabled = true
   if (!settings.enabled || settings.paused) return

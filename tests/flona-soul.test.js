@@ -227,17 +227,55 @@ test('أمر حذف استثناءات لوكا بدون كلمة الكل يم�
   delete global.db
 })
 
-test('أمر اللهجة يقبل صنعاني ويحفظها للمجموعة', async () => {
+test('أمر اللهجة يقبل صنعاني ويحفظها كإعداد عام لكل المجموعات', async () => {
   let writes = 0
-  global.db = { data: { chats: { '111@g.us': {} } }, write: async () => { writes += 1 } }
+  global.db = { data: { chats: { '111@g.us': {}, '222@g.us': { soulAI: { dialect: 'gulf' } } } }, write: async () => { writes += 1 } }
   const sent = []
   const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
 
   await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'لهجة', args: ['صنعاني'], conn, isAdmin: true })
 
   assert.equal(global.db.data.chats['111@g.us'].soulAI.dialect, 'sanaani')
+  assert.equal(global.db.data.chats['222@g.us'].soulAI.dialect, 'sanaani')
+  assert.equal(global.db.data.soulAIGlobalStyle.dialect, 'sanaani')
   assert.match(sent[0], /صنعاني/)
   assert.equal(writes, 1)
+  delete global.db
+})
+
+test('تغييرات الشخصية والمزاج واللهجة تنعكس في كل المجموعات وعلى المجموعات الجديدة', async () => {
+  global.db = {
+    data: {
+      chats: {
+        '111@g.us': { soulAI: { enabled: true, personality: 'wise', mood: 'calm', dialect: 'auto' } },
+        '222@g.us': { soulAI: { enabled: false, personality: 'romantic', mood: 'sad', dialect: 'gulf' } },
+      },
+    },
+    write: async () => {},
+  }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'شخصية', args: ['كوميدي'], conn, isAdmin: true })
+  assert.equal(global.db.data.chats['111@g.us'].soulAI.personality, 'comedian')
+  assert.equal(global.db.data.chats['222@g.us'].soulAI.personality, 'comedian')
+  assert.equal(global.db.data.chats['222@g.us'].soulAI.enabled, false)
+
+  await soulHandler({ isGroup: true, chat: '222@g.us' }, { command: 'مزاج', args: ['حزين'], conn, isAdmin: true })
+  await soulHandler({ isGroup: true, chat: '222@g.us' }, { command: 'لهجة', args: ['صنعاني'], conn, isAdmin: true })
+  for (const chatId of ['111@g.us', '222@g.us']) {
+    const settings = global.db.data.chats[chatId].soulAI
+    assert.equal(settings.personality, 'comedian')
+    assert.equal(settings.mood, 'sad')
+    assert.equal(settings.dialect, 'sanaani')
+  }
+
+  await soulHandler({ isGroup: true, chat: '333@g.us' }, { command: 'حالة_الذكاء', args: [], conn })
+  assert.equal(global.db.data.chats['333@g.us'].soulAI.personality, 'comedian')
+  assert.match(sent.at(-1), /كوميدي/)
+  assert.match(sent.at(-1), /صنعاني/)
+  assert.match(sent.at(-1), /حزين/)
+  assert.match(sent.at(-1), /نطاق الشخصية والمزاج واللهجة: عام/)
   delete global.db
 })
 
