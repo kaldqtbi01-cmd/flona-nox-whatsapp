@@ -42,14 +42,26 @@ function jidVariants(jid) {
   const number = base.split('@')[0]
   return [value, base, number, `${number}@s.whatsapp.net`, `${number}@lid`]
 }
-function botIsMentioned(m, user) {
+function botIdentitySources(user, groupMetadata) {
+  const sources = [user?.id, user?.jid, user?.lid]
+  const userNumbers = sources.flatMap(jidVariants).filter(value => !value.includes('@'))
+  for (const participant of groupMetadata?.participants || []) {
+    const participantSources = [participant?.id, participant?.jid, participant?.phoneNumber]
+    const participantNumbers = participantSources.flatMap(jidVariants).filter(value => !value.includes('@'))
+    if (userNumbers.some(number => participantNumbers.includes(number))) {
+      sources.push(participant.id, participant.jid, participant.lid, participant.phoneNumber)
+    }
+  }
+  return sources.flatMap(jidVariants)
+}
+function botIsMentioned(m, user, groupMetadata) {
   const mentions = m.mentionedJid || m.msg?.contextInfo?.mentionedJid || m.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
-  const botIds = [user?.id, user?.jid, user?.lid].flatMap(jidVariants)
+  const botIds = botIdentitySources(user, groupMetadata)
   return Array.isArray(mentions) && mentions.some(jid => jidVariants(jid).some(candidate => botIds.includes(candidate)))
 }
-function isReplyToBot(m, user) {
+function isReplyToBot(m, user, groupMetadata) {
   const quotedSender = m.quoted?.sender || m.message?.extendedTextMessage?.contextInfo?.participant
-  const botIds = [user?.id, user?.jid, user?.lid].flatMap(jidVariants)
+  const botIds = botIdentitySources(user, groupMetadata)
   return Boolean(quotedSender && botIds.some(candidate => jidVariants(quotedSender).includes(candidate)))
 }
 
@@ -211,13 +223,13 @@ handler.help = [
 handler.tags = ['soul']
 handler.group = true
 
-handler.all = async function (m) {
+handler.all = async function (m, ctx = {}) {
   if (!m.isGroup || m.fromMe) return
   const text = m.text?.trim() || ''
   const mediaMessage = m.message?.imageMessage || m.message?.audioMessage || m.message?.stickerMessage
   if ((!text && !mediaMessage) || PREFIXES.test(text)) return
-  const mentioned = botIsMentioned(m, this.user)
-  const replied = isReplyToBot(m, this.user)
+  const mentioned = botIsMentioned(m, this.user, ctx.groupMetadata)
+  const replied = isReplyToBot(m, this.user, ctx.groupMetadata)
   if (!mentioned && !replied) return
 
   const messageId = m.key?.id
@@ -278,7 +290,11 @@ handler.all = async function (m) {
     addSoulMemory(chat, text)
     await saveDb()
   } catch (error) {
-    if (!String(error?.message || '').includes('429')) console.error('[FLONA SOUL]', error?.message || error)
+    const message = String(error?.message || '')
+    if (!message.includes('429')) console.error('[FLONA SOUL]', message || error)
+    await this.sendMessage(m.chat, {
+      text: '⚠️ لوكا استلم رسالتك، لكن مزود الذكاء لم يُكمل الرد حاليًا. جرّب بعد قليل أو افحص حالة المزودات.'
+    }, { quoted: m }).catch(() => {})
   } finally {
     IN_FLIGHT.delete(m.chat)
   }
