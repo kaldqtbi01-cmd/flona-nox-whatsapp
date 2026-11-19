@@ -260,6 +260,8 @@ function getFallback(text, mood) {
   if (/انتي مين/i.test(text)) return 'أنا يورو، مساعد آلي بشخصية شيطان الحرب ⚔️'
   if (/عامل|عاملة|اخبار/i.test(text)) return pick(['تمام 🙂', 'كويسة 😌', 'عادي الحمد لله'])
   if (/اتكلم|تكلمي|ردي/i.test(text)) return pick(['قول، أسمعك 👀', 'إيش عندك؟ 🙂', 'تفضل'])
+  if (/اسم.*امك|امك.*اسم/i.test(text)) return 'ما عندي أم، أنا يورو — شخصية آلية من عالم الشياطين ⚔️'
+  if (isQuestion(text)) return 'سؤالك واضح، لكن تعذر جلب إجابتي الآن 😅'
 
   if (mood === 'annoyed') return pick(['اها، فهمت عليك 🙄', 'تمام، كملي 😑'])
   if (mood === 'bored') return pick(['اها 😶', 'ماشي 🙂', 'أوكي'])
@@ -341,6 +343,7 @@ function buildContext(chatId, senderId, senderName, text, mentioned, isReply, mo
       ``,
       `ردي عليه — ممنوع SKIP.`,
       `جاوبي عن سؤاله أو طلبه مباشرة، ولا تخرجي عن موضوعه.`,
+      `إذا كان سؤاله مباشرًا مثل: وش اسم أمك، أعطي إجابة مباشرة على السؤال ولا تكتبي عبارات عامة مثل: اها فهمت عليك أو كملي.`,
       `استخدمي إيموجي مناسبًا إذا كان الرد خفيفًا، بدون مبالغة.`,
       `جملة واحدة قصيرة بلهجة عربية محكية مناسبة للمجموعة.`,
       `لو سألك سؤال — جاوبيه.`,
@@ -505,14 +508,26 @@ handler.all = async function (m) {
     // ── Get AI response ──
     let reply
     try {
-      const result = await aiProviders.ask({
-        task: 'chat',
-        messages: [{ role: 'user', content: prompt }],
-        systemInstruction: system,
-        temperature: 0.7,
-        maxTokens: 250,
-        fallback: true,
-      })
+      // Gemini Flash 3.1 هو المسار الأساسي ليورو لأنه أفضل في فهم سياق
+      // المحادثة والرد على السؤال كاملًا. يبقى Groq احتياطيًا عند تعذره.
+      let result
+      try {
+        result = await aiProviders.geminiGenerate({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          systemInstruction: system,
+          temperature: 0.55,
+          maxTokens: 250,
+        })
+      } catch {
+        result = await aiProviders.ask({
+          task: 'chat',
+          messages: [{ role: 'user', content: prompt }],
+          systemInstruction: system,
+          temperature: 0.55,
+          maxTokens: 250,
+          fallback: true,
+        })
+      }
       reply = cleanReply(result?.text || '') || getFallback(text, mood.name)
     } catch (err) {
       reply = getFallback(text, mood.name)
