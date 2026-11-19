@@ -66,7 +66,6 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
     const botSettings = global.db.data.settings[conn.user.jid] ||= {}
     // التفعيل الافتراضي يمنع ظهور رسالة التعطيل عند إنشاء إعدادات جديدة.
     // يمكن للمطور تعطيل الخاصية لاحقًا بوضع jadibotmd=false.
-    if (botSettings.jadibotmd === false) return m.reply('⚠️ خاصية البوتات الفرعية معطلة.')
     if (command === 'تنصيب' && String(text || '').trim().split(/\s+/)[0] === 'تنشيط') {
         if (!isOwner) return m.reply('⚠️ هذا الأمر متاح لمالك البوت فقط.')
         const result = await reactivateSubBots()
@@ -83,6 +82,7 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner, text }) => {
             `الجلسات المتصلة تُترك كما هي، ولم تُحذف أي ملفات جلسة.`
         )
     }
+    if (botSettings.jadibotmd === false) return m.reply('⚠️ خاصية البوتات الفرعية معطلة.')
     if (command === 'تنصيب' && !String(text || '').replace(/\D/g, '')) {
         return m.reply(
             `📱 أرسل رقم حساب البوت الفرعي مع الأمر.\n\n` +
