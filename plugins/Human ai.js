@@ -1,4 +1,4 @@
-import { askOverChat } from './ai-helper.js'
+import { aiProviders } from '../lib/ai-providers.js'
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  🧠 𝐂𝐇𝐄𝐎𝐍 𝐁𝐎𝐓 — Human-Like AI Personality
@@ -20,9 +20,9 @@ const IGNORED_USERS = new Map()  // Users she's "annoyed" with
 // ── Config ─────────────────────────────────
 const MAX_HISTORY      = 30     // Messages to remember
 const MAX_USER_MEMORY  = 10    // Per-user facts to remember
-const COOLDOWN_MS      = 8000  // Min time between replies
+const COOLDOWN_MS      = 3000  // Min time between replies
 const REPLY_WINDOW     = 60000 // 1 minute window for reply counting
-const MAX_REPLIES_WINDOW = 4   // Max replies per window (don't spam)
+const MAX_REPLIES_WINDOW = 12  // Deterministic auto-reply, bounded to avoid spam
 
 // ── Moods ──────────────────────────────────
 const MOODS = {
@@ -300,30 +300,8 @@ async function simulateTyping(conn, chatId, text) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function shouldRespond(text, chatId, mentioned, isReply, mood) {
-  // Always respond if mentioned or replied to
-  if (mentioned || isReply) return { respond: true, reason: 'mentioned' }
-
-  // Don't respond if on cooldown
   if (!canReply(chatId)) return { respond: false, reason: 'cooldown' }
-
-  // Questions about topics she cares about
-  if (/حرب|قتال|قوة|ضعف|شيطان|أنمي|انمي|chainsaw/i.test(text)) {
-    return { respond: Math.random() < 0.40, reason: 'topic' }
-  }
-
-  // Someone asking a direct question (no name)
-  if (isQuestion(text) && Math.random() < 0.12) {
-    return { respond: true, reason: 'question' }
-  }
-
-  // Greeting
-  if (isGreeting(text) && Math.random() < 0.15) {
-    return { respond: true, reason: 'greeting' }
-  }
-
-  // Random participation based on mood
-  const chance = mood.chance || 0.10
-  return { respond: Math.random() < chance, reason: 'random' }
+  return { respond: true, reason: mentioned || isReply ? 'direct' : 'automatic' }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -440,9 +418,6 @@ function cleanReply(text) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function shouldReactInstead(text, mentioned) {
-  if (mentioned) return false // Always reply if mentioned
-  if (isLaugh(text) && Math.random() < 0.4) return true
-  if (/جميل|حلو|ممتاز|رهيب/i.test(text) && Math.random() < 0.3) return true
   return false
 }
 
@@ -467,6 +442,7 @@ handler.all = async function (m) {
     if (m.fromMe) return
 
     const text   = m.text?.trim()
+    if (text && /^[#!./-]/.test(text)) return
     const chatId = m.chat
     const name   = m.pushName || m.sender?.split('@')[0] || 'unknown'
     const botId  = this.user?.id?.split(':')[0]
@@ -525,20 +501,22 @@ handler.all = async function (m) {
     // ── Get AI response ──
     let reply
     try {
-      reply = await askOverChat(prompt, system)
-      reply = cleanReply(reply)
-      if (!reply && (mentioned || isReply)) reply = getFallback(text, mood.name)
+      const result = await aiProviders.ask({
+        task: 'chat',
+        messages: [{ role: 'user', content: prompt }],
+        systemInstruction: system,
+        temperature: 0.7,
+        maxTokens: 250,
+        fallback: true,
+      })
+      reply = cleanReply(result?.text || '') || getFallback(text, mood.name)
     } catch (err) {
-      // Only fallback if mentioned/replied
-      if (mentioned || isReply) {
-        reply = getFallback(text, mood.name)
-      } else return
+      reply = getFallback(text, mood.name)
     }
 
     // ── Handle SKIP ──
     if (!reply) return
-    if (!mentioned && !isReply && isSkip(reply)) return
-    if ((mentioned || isReply) && isSkip(reply)) {
+    if (isSkip(reply)) {
       reply = getFallback(text, mood.name)
     }
 
