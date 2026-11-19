@@ -135,6 +135,12 @@ async function handleCommand(m, ctx) {
     const key = resolvePersonality(value)
     if (!key) return send(m, conn, '❌ الشخصية غير موجودة. استخدم .شخصيات')
     settings.personality = key
+    const selected = PERSONALITIES[key]
+    if (selected?.sliders) {
+      settings.sarcasm = selected.sliders.sarcasm
+      settings.emotion = selected.sliders.emotion
+      settings.intensity = selected.sliders.intensity
+    }
     settings.enabled = true
     await saveDb()
     return send(m, conn, `✅ تم اختيار شخصية لوكا: ${PERSONALITIES[key].label}`)

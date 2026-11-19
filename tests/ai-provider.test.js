@@ -28,6 +28,20 @@ test('يوجه النص إلى Groq', async () => {
   assert.match(calls[0].url, /api\.groq\.com/)
 })
 
+test('يمرر تعليمات الشخصية إلى Groq كرسالة system', async () => {
+  let request
+  const api = createAIProviders({
+    env: { GROQ_API_KEY: 'groq-secret', GEMINI_API_KEY: 'gemini-secret' },
+    fetchImpl: async (url, options) => {
+      request = { url, body: JSON.parse(options.body) }
+      return response({ choices: [{ message: { content: 'رد ملتزم' } }] })
+    },
+  })
+  await api.ask({ task: 'chat', messages: [{ role: 'user', content: 'سؤال' }], systemInstruction: 'التزم باللهجة اليمنية والشخصية الرومانسية' })
+  assert.equal(request.body.messages[0].role, 'system')
+  assert.match(request.body.messages[0].content, /اللهجة اليمنية/)
+})
+
 test('يوجه الصورة إلى Gemini', async () => {
   const calls = []
   const api = createAIProviders({
