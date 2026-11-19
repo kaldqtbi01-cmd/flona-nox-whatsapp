@@ -30,7 +30,12 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
   assert.ok(Object.keys(DIALECTS).length >= 13)
   assert.equal(resolveDialect('يمني'), 'yemeni')
   assert.equal(resolveDialect('مغربي'), 'moroccan')
+  assert.equal(resolveDialect('صنعاني'), 'sanaani')
+  assert.equal(resolveDialect('صنعانيه'), 'sanaani')
+  assert.equal(resolveDialect('لهجة صنعاء'), 'sanaani')
   assert.equal(resolveDialect('تلقائي'), 'auto')
+  assert.match(DIALECTS.sanaani.instruction, /لا تخلطها/)
+  assert.match(DIALECTS.sanaani.instruction, /ما قلتش/)
 })
 
 test('محرك الشخصيات والمزاج يحل الأسماء العربية', () => {
@@ -180,5 +185,19 @@ test('أمر حذف استثناءات لوكا بدون كلمة الكل يم�
   assert.deepEqual(chats['222@g.us'].soulAI.excludedUsers, ['c@s.whatsapp.net'])
   assert.equal(writes, 1)
   assert.match(sent[0], /هذه المجموعة فقط/)
+  delete global.db
+})
+
+test('أمر اللهجة يقبل صنعاني ويحفظها للمجموعة', async () => {
+  let writes = 0
+  global.db = { data: { chats: { '111@g.us': {} } }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'لهجة', args: ['صنعاني'], conn, isAdmin: true })
+
+  assert.equal(global.db.data.chats['111@g.us'].soulAI.dialect, 'sanaani')
+  assert.match(sent[0], /صنعاني/)
+  assert.equal(writes, 1)
   delete global.db
 })
