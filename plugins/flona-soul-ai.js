@@ -144,9 +144,9 @@ async function handleCommand(m, ctx) {
   const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا', 'حذف_استثناءات_لوكا'])
   if (adminCommands.has(cmd) && !adminOnly(ctx)) return m.reply?.('❌ هذا الأمر للأدمن فقط')
 
-  if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدم: .شخصية حكيم`)
+  if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدم: .شخصية حكيم\nأو: .شخصية تلقائي للاختيار حسب سياق الكلام`)
   if (cmd === 'شخصية') {
-    if (!value) return send(m, conn, `الشخصية الحالية: ${PERSONALITIES[settings.personality]?.label || settings.personality}\nاستخدم .شخصيات لعرض القائمة`)
+    if (!value) return send(m, conn, `الشخصية الحالية: ${getActivePersonality(settings).label}\nاستخدم .شخصية تلقائي للاختيار حسب سياق الكلام، أو .شخصيات لعرض القائمة`)
     if (value.startsWith('مخصصة ')) {
       const custom = value.slice('مخصصة '.length).trim()
       if (custom.length < 5) return send(m, conn, '❌ اكتب وصفًا أطول للشخصية المخصصة')
@@ -159,6 +159,11 @@ async function handleCommand(m, ctx) {
     const key = resolvePersonality(value)
     if (!key) return send(m, conn, '❌ الشخصية غير موجودة. استخدم .شخصيات')
     settings.personality = key
+    if (key === 'auto') {
+      settings.enabled = true
+      await saveDb()
+      return send(m, conn, '✅ تم تفعيل الشخصية التلقائية للوكا؛ ستختار الأسلوب الأنسب لكل رسالة بحسب سياقها، مع الحفاظ على اللهجة المحددة. يمكنك الرجوع لأي شخصية ثابتة مثل: .شخصية حكيم')
+    }
     const selected = PERSONALITIES[key]
     if (selected?.sliders) {
       settings.sarcasm = selected.sliders.sarcasm

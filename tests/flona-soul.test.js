@@ -45,8 +45,28 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
 test('محرك الشخصيات والمزاج يحل الأسماء العربية', () => {
   assert.equal(resolvePersonality('رومانسي'), 'romantic')
   assert.equal(resolvePersonality('حكيم'), 'wise')
+  assert.equal(resolvePersonality('تلقائي'), 'auto')
+  assert.equal(resolvePersonality('auto'), 'auto')
   assert.equal(resolveMood('سعيد'), 'happy')
   assert.equal(resolveMood('تلقائي'), 'auto')
+})
+
+test('الشخصية التلقائية تعرض خيارات الأسلوب وتفصلها عن اللهجة', () => {
+  const chat = {}
+  const settings = getSoulSettings(chat)
+  settings.personality = resolvePersonality('تلقائي')
+  settings.dialect = 'sanaani'
+
+  assert.equal(getActivePersonality(settings).label, 'تلقائي حسب السياق')
+  const prompt = buildSoulSystemPrompt(settings, '', 'calm', [])
+  assert.match(prompt, /اختر من هذه الأساليب ما يلائم مقصد الرسالة الحالية/)
+  assert.match(prompt, /رومانسي:/)
+  assert.match(prompt, /حكيم:/)
+  assert.match(prompt, /قد يتغير الاختيار بين رسالة وأخرى/)
+  assert.match(prompt, /لا تغيّر اللهجة بسبب اختيار الشخصية/)
+  assert.match(prompt, /اختر مستوى السخرية والعاطفة والحدة بما ينسجم مع الشخصية والسياق الحالي/)
+  assert.doesNotMatch(prompt, /مستوى السخرية: 0\.25/)
+  assert.match(prompt, /صنعاني/)
 })
 
 test('ذاكرة المجموعة تمنع الأسرار وتدعم المسح', () => {
@@ -203,5 +223,22 @@ test('أمر اللهجة يقبل صنعاني ويحفظها للمجموعة'
   assert.equal(global.db.data.chats['111@g.us'].soulAI.dialect, 'sanaani')
   assert.match(sent[0], /صنعاني/)
   assert.equal(writes, 1)
+  delete global.db
+})
+
+test('أمر .شخصية تلقائي يفعّل الوضع ويحفظه دون تغيير اللهجة', async () => {
+  let writes = 0
+  global.db = { data: { chats: { '111@g.us': { soulAI: { dialect: 'sanaani' } } } }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'شخصية', args: ['تلقائي'], conn, isAdmin: true })
+
+  const settings = global.db.data.chats['111@g.us'].soulAI
+  assert.equal(settings.personality, 'auto')
+  assert.equal(settings.enabled, true)
+  assert.equal(settings.dialect, 'sanaani')
+  assert.equal(writes, 1)
+  assert.match(sent[0], /الشخصية التلقائية/)
   delete global.db
 })
