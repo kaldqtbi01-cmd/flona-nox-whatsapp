@@ -17,8 +17,9 @@ import {
   resolveResponseLength,
 } from '../lib/flona-soul-engine.js'
 
-test('FLONA SOUL يعرض الشخصيات الأساسية العشر', () => {
-  assert.equal(Object.keys(PERSONALITIES).length, 10)
+test('FLONA SOUL يعرض الشخصيات العشر ووضع الشخصية التلقائية', () => {
+  assert.equal(Object.keys(PERSONALITIES).filter(key => key !== 'auto').length, 10)
+  assert.equal(PERSONALITIES.auto.label, 'تلقائي حسب السياق')
   for (const personality of Object.values(PERSONALITIES)) {
     assert.ok(personality.style)
     assert.equal('opening' in personality, false)
@@ -66,6 +67,7 @@ test('الشخصية التلقائية تعرض خيارات الأسلوب و�
   assert.match(prompt, /لا تغيّر اللهجة بسبب اختيار الشخصية/)
   assert.match(prompt, /اختر مستوى السخرية والعاطفة والحدة بما ينسجم مع الشخصية والسياق الحالي/)
   assert.doesNotMatch(prompt, /مستوى السخرية: 0\.25/)
+  assert.doesNotMatch(prompt, /- تلقائي حسب السياق:/)
   assert.match(prompt, /صنعاني/)
 })
 
@@ -240,5 +242,17 @@ test('أمر .شخصية تلقائي يفعّل الوضع ويحفظه دون 
   assert.equal(settings.dialect, 'sanaani')
   assert.equal(writes, 1)
   assert.match(sent[0], /الشخصية التلقائية/)
+  delete global.db
+})
+
+test('أمر .شخصيات يعرض خيار تلقائي حسب السياق', async () => {
+  global.db = { data: { chats: { '111@g.us': {} } } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'شخصيات', args: [], conn })
+
+  assert.match(sent[0], /تلقائي حسب السياق/)
+  assert.match(sent[0], /\.شخصية تلقائي/)
   delete global.db
 })
