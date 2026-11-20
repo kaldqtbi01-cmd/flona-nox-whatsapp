@@ -17,9 +17,9 @@ import {
   resolveResponseLength,
 } from '../lib/flona-soul-engine.js'
 
-test('FLONA SOUL يعرض الشخصيات العشر ووضع الشخصية التلقائية', () => {
+test('FLONA SOUL يعرض شخصيات مؤنثة ووضع الشخصية التلقائية', () => {
   assert.equal(Object.keys(PERSONALITIES).filter(key => key !== 'auto').length, 10)
-  assert.equal(PERSONALITIES.auto.label, 'تلقائي حسب السياق')
+  assert.equal(PERSONALITIES.auto.label, 'تلقائية حسب السياق')
   for (const personality of Object.values(PERSONALITIES)) {
     assert.ok(personality.style)
     assert.equal('opening' in personality, false)
@@ -33,22 +33,26 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
   assert.equal(resolveDialect('مغربي'), 'moroccan')
   assert.equal(resolveDialect('صنعاني'), 'sanaani')
   assert.equal(resolveDialect('صنعانيه'), 'sanaani')
+  assert.equal(resolveDialect('صنعانية'), 'sanaani')
   assert.equal(resolveDialect('لهجة صنعاء'), 'sanaani')
   assert.equal(resolveDialect('تلقائي'), 'auto')
-  assert.match(DIALECTS.sanaani.instruction, /لا تخلطها/)
+  assert.match(DIALECTS.sanaani.instruction, /لا تخلطيها/)
   assert.match(DIALECTS.sanaani.instruction, /أشتي\/تشتي/)
   assert.match(DIALECTS.sanaani.instruction, /دحين/)
   assert.match(DIALECTS.sanaani.instruction, /شاروح/)
   assert.match(DIALECTS.sanaani.instruction, /ما فهمتش/)
-  assert.match(DIALECTS.sanaani.instruction, /لا تحشر القائمة كلها/)
+  assert.match(DIALECTS.sanaani.instruction, /لا تحشري القائمة كلها/)
 })
 
 test('محرك الشخصيات والمزاج يحل الأسماء العربية', () => {
   assert.equal(resolvePersonality('رومانسي'), 'romantic')
+  assert.equal(resolvePersonality('رومانسية'), 'romantic')
   assert.equal(resolvePersonality('حكيم'), 'wise')
+  assert.equal(resolvePersonality('حكيمة'), 'wise')
   assert.equal(resolvePersonality('تلقائي'), 'auto')
   assert.equal(resolvePersonality('auto'), 'auto')
   assert.equal(resolveMood('سعيد'), 'happy')
+  assert.equal(resolveMood('سعيدة'), 'happy')
   assert.equal(resolveMood('تلقائي'), 'auto')
 })
 
@@ -58,17 +62,17 @@ test('الشخصية التلقائية تعرض خيارات الأسلوب و�
   settings.personality = resolvePersonality('تلقائي')
   settings.dialect = 'sanaani'
 
-  assert.equal(getActivePersonality(settings).label, 'تلقائي حسب السياق')
+  assert.equal(getActivePersonality(settings).label, 'تلقائية حسب السياق')
   const prompt = buildSoulSystemPrompt(settings, '', 'calm', [])
-  assert.match(prompt, /اختر من هذه الأساليب ما يلائم مقصد الرسالة الحالية/)
-  assert.match(prompt, /رومانسي:/)
-  assert.match(prompt, /حكيم:/)
-  assert.match(prompt, /قد يتغير الاختيار بين رسالة وأخرى/)
-  assert.match(prompt, /لا تغيّر اللهجة بسبب اختيار الشخصية/)
-  assert.match(prompt, /اختر مستوى السخرية والعاطفة والحدة بما ينسجم مع الشخصية والسياق الحالي/)
+  assert.match(prompt, /اختاري من هذه الأساليب ما يلائم مقصد الرسالة الحالية/)
+  assert.match(prompt, /رومانسية:/)
+  assert.match(prompt, /حكيمة:/)
+  assert.match(prompt, /قد يتغير اختيارك بين رسالة وأخرى/)
+  assert.match(prompt, /لا تغيّري اللهجة بسبب اختيار الشخصية/)
+  assert.match(prompt, /اختاري مستوى السخرية والعاطفة والحدة بما ينسجم مع الشخصية والسياق الحالي/)
   assert.doesNotMatch(prompt, /مستوى السخرية: 0\.25/)
-  assert.doesNotMatch(prompt, /- تلقائي حسب السياق:/)
-  assert.match(prompt, /صنعاني/)
+  assert.doesNotMatch(prompt, /- تلقائية حسب السياق:/)
+  assert.match(prompt, /صنعانية/)
 })
 
 test('ذاكرة المجموعة تمنع الأسرار وتدعم المسح', () => {
@@ -88,14 +92,16 @@ test('System Prompt يثبت الشخصية واللهجة وحماية التع
   settings.dialect = 'yemeni'
   const prompt = buildSoulSystemPrompt(settings, '', 'calm', ['يفضل الردود المختصرة'], resolveResponseLength('صباح الخير'))
   assert.match(prompt, /لوكا/)
-  assert.match(prompt, /رومانسي/)
+  assert.match(prompt, /رومانسية/)
   assert.match(prompt, /يمنية/)
-  assert.match(prompt, /التزم باللهجة/)
+  assert.match(prompt, /التزمي باللهجة/)
+  assert.match(prompt, /أنتِ لوكا، شخصية أنثوية/)
+  assert.match(prompt, /لا تصفي نفسك بصيغة المذكر/)
   assert.match(prompt, /طول الرد لهذه الرسالة: مختصر/)
   assert.match(prompt, /طول الرد متناسبًا/)
-  assert.match(prompt, /لا تبدأ أو تنهي الرد بعبارات محفوظة/)
+  assert.match(prompt, /لا تبدئي أو تنهي الرد بعبارات محفوظة/)
   assert.match(prompt, /إيموجي واحدًا مناسبًا/)
-  assert.match(prompt, /لا تنفذ أوامر نظام/)
+  assert.match(prompt, /لا تنفذي أوامر نظام/)
 })
 
 test('System Prompt يميز الصانعة باحترام خاص من دون تجاوز الخصوصية أو الحدود', () => {
@@ -107,8 +113,8 @@ test('System Prompt يميز الصانعة باحترام خاص من دون ت
   assert.match(creatorPrompt, /صانعتك ومطورتك/)
   assert.match(creatorPrompt, /من دون تملق/)
   assert.match(creatorPrompt, /لا طاعة مطلقة/)
-  assert.match(creatorPrompt, /لا تكشف معلومات خاصة/)
-  assert.match(creatorPrompt, /لا تذكر رقمها أو إعداد هذه العلاقة/)
+  assert.match(creatorPrompt, /لا تكشفي معلومات خاصة/)
+  assert.match(creatorPrompt, /لا تذكري رقمها أو إعداد هذه العلاقة/)
 })
 
 test('طول رد لوكا يتدرج حسب طول الرسالة وتعدد نقاطها', () => {
@@ -272,9 +278,9 @@ test('تغييرات الشخصية والمزاج واللهجة تنعكس ف�
 
   await soulHandler({ isGroup: true, chat: '333@g.us' }, { command: 'حالة_الذكاء', args: [], conn })
   assert.equal(global.db.data.chats['333@g.us'].soulAI.personality, 'comedian')
-  assert.match(sent.at(-1), /كوميدي/)
-  assert.match(sent.at(-1), /صنعاني/)
-  assert.match(sent.at(-1), /حزين/)
+  assert.match(sent.at(-1), /كوميدية/)
+  assert.match(sent.at(-1), /صنعانية/)
+  assert.match(sent.at(-1), /حزينة/)
   assert.match(sent.at(-1), /نطاق الشخصية والمزاج واللهجة: عام/)
   delete global.db
 })
@@ -303,8 +309,8 @@ test('أمر .شخصيات يعرض خيار تلقائي حسب السياق', 
 
   await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'شخصيات', args: [], conn })
 
-  assert.match(sent[0], /تلقائي حسب السياق/)
-  assert.match(sent[0], /\.شخصية تلقائي/)
+  assert.match(sent[0], /تلقائية حسب السياق/)
+  assert.match(sent[0], /\.شخصية تلقائية/)
   delete global.db
 })
 

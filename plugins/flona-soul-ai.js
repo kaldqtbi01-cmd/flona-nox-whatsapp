@@ -210,12 +210,12 @@ async function handleCommand(m, ctx) {
   const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا', 'حذف_استثناءات_لوكا'])
   if (adminCommands.has(cmd) && !adminOnly(ctx)) return m.reply?.('❌ هذا الأمر للأدمن فقط')
 
-  if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدم: .شخصية حكيم\nأو: .شخصية تلقائي للاختيار حسب سياق الكلام`)
+  if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدمي: .شخصية حكيمة\nأو: .شخصية تلقائية للاختيار حسب سياق الكلام`)
   if (cmd === 'شخصية') {
-    if (!value) return send(m, conn, `الشخصية العامة الحالية: ${getActivePersonality(settings).label}\nهذا الإعداد مشترك بين المجموعات.\nاستخدم .شخصية تلقائي للاختيار حسب سياق الكلام، أو .شخصيات لعرض القائمة`)
+    if (!value) return send(m, conn, `الشخصية العامة الحالية: ${getActivePersonality(settings).label}\nهذا الإعداد مشترك بين المجموعات.\nاستخدمي .شخصية تلقائية للاختيار حسب سياق الكلام، أو .شخصيات لعرض القائمة`)
     if (value.startsWith('مخصصة ')) {
       const custom = value.slice('مخصصة '.length).trim()
-      if (custom.length < 5) return send(m, conn, '❌ اكتب وصفًا أطول للشخصية المخصصة')
+      if (custom.length < 5) return send(m, conn, '❌ اكتبي وصفًا أطول للشخصية المخصصة')
       updateGlobalSoulStyle(chat, { personality: 'custom', customPersonality: custom.slice(0, 500) })
       getSoulSettings(chat).enabled = true
       await saveDb()
@@ -228,7 +228,7 @@ async function handleCommand(m, ctx) {
       updateGlobalSoulStyle(chat, personalityChanges)
       getSoulSettings(chat).enabled = true
       await saveDb()
-      return send(m, conn, '✅ تم جعل الشخصية التلقائية إعدادًا عامًا؛ ستختار لوكا الأسلوب الأنسب في كل مجموعة مفعّلة، مع الحفاظ على اللهجة المحددة. للرجوع لشخصية ثابتة: .شخصية حكيم')
+      return send(m, conn, '✅ تم جعل الشخصية التلقائية إعدادًا عامًا؛ ستختار لوكا الأسلوب الأنسب في كل مجموعة مفعّلة، مع الحفاظ على اللهجة المحددة. للرجوع لشخصية ثابتة: .شخصية حكيمة')
     }
     const selected = PERSONALITIES[key]
     if (selected?.sliders) {
@@ -237,7 +237,7 @@ async function handleCommand(m, ctx) {
     updateGlobalSoulStyle(chat, personalityChanges)
     getSoulSettings(chat).enabled = true
     await saveDb()
-    return send(m, conn, `✅ تم اختيار شخصية لوكا العامة: ${PERSONALITIES[key].label} — ستُطبق في كل المجموعات التي تعمل فيها لوكا`)
+    return send(m, conn, `✅ تم اختيار شخصية لوكا العامة: ${PERSONALITIES[key].label} — ستُطبّق في كل المجموعات التي تعمل فيها لوكا`)
   }
   if (cmd === 'لهجة') {
     if (!value || value === 'الحالية') return send(m, conn, `🗣️ اللهجة العامة الحالية: ${DIALECTS[settings.dialect]?.label || settings.dialect}\nالإعداد مشترك بين المجموعات.\n\n${listLines(DIALECTS)}\n\nمثال: .لهجة يمني`)
@@ -431,7 +431,7 @@ handler.all = async function (m, ctx = {}) {
               ? 'نموذج الذكاء غير متاح في المفتاح الحالي؛ راجع GEMINI_MODEL.'
               : 'حدث عطل مؤقت في Gemini وGroq؛ راجع سجل PM2.'
         await connection.sendMessage(m.chat, {
-          text: `⚠️ لوكا استلم رسالتك، لكن مزود الذكاء لم يُكمل الرد.
+          text: `⚠️ لوكا استلمت رسالتك، لكن مزود الذكاء لم يُكمل الرد.
 السبب المحتمل: ${reason}`
         }, { quoted: m }).catch(() => {})
       }
