@@ -146,3 +146,19 @@ test('يسمح بتحديد مهلة Groq وعدد محاولاته لكل طل�
   await assert.rejects(api.groqChat({ messages: [{ role: 'user', content: 'سؤال' }], timeoutMs: 100, retries: 0 }), /HTTP 503/)
   assert.equal(calls, 1)
 })
+
+test('يضع Groq في تبريد بعد 429 ولا يعيد إرسال الطلبات خلاله', async () => {
+  let calls = 0
+  const api = createAIProviders({
+    env: { GROQ_API_KEY: 'groq-secret', GEMINI_API_KEY: '' },
+    rateLimitCooldownMs: 10_000,
+    fetchImpl: async () => {
+      calls += 1
+      return response({ error: { message: 'rate limit' } }, 429)
+    },
+  })
+  await assert.rejects(api.groqChat({ messages: [{ role: 'user', content: 'الأولى' }], retries: 0 }), /HTTP 429/)
+  await assert.rejects(api.groqChat({ messages: [{ role: 'user', content: 'الثانية' }], retries: 0 }), /تبريد تلقائي/)
+  assert.equal(calls, 1)
+  assert.ok(api.status().groq.cooldownMs > 0)
+})
