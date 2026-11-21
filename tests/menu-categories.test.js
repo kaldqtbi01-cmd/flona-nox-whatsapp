@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  MENU_DISPLAY_OVERRIDES,
   MENU_HELP_OVERRIDES,
   MENU_SECTIONS,
   getMenuCategories,
@@ -72,6 +73,20 @@ test('multi-purpose plugin commands route to one appropriate section each', () =
   assert.equal(['games', 'download', 'media'].reduce((sum, section) => sum + getMenuCommands(plugins, section).length, 0), 6)
 })
 
+test('game directory shows the game entry, not each in-game action', () => {
+  const challengeCommand = /^(تحدي|تحدي_انضم|تحدي_جاوب)$/
+  const plugins = {
+    'تحدي.js': { tags: ['games'], help: ['تحدي', 'تحدي_انضم', 'تحدي_جاوب 1'], command: challengeCommand },
+    'لعبة.js': { tags: ['games'], help: ['لعبة', 'دخول', 'كشف', 'فرز'], command: /^(لعبة|دخول|كشف|فرز)$/ },
+    'مافيا.js': { tags: ['games'], help: ['مافيا', 'مافيا_قتل @', 'مافيا_حسم'], command: /^(مافيا|مافيا_قتل|مافيا_حسم)$/ }
+  }
+
+  assert.deepEqual(getMenuCommands(plugins, 'games').sort(), ['تحدي', 'لعبة', 'مافيا'].sort())
+  assert.equal(plugins['تحدي.js'].command.test('تحدي_جاوب'), true)
+  assert.equal(plugins['لعبة.js'].command.test('كشف'), true)
+  assert.ok(Object.hasOwn(MENU_DISPLAY_OVERRIDES, 'تحدي.js'))
+})
+
 test('a newly supplied label is omitted when the same label already exists in that section', () => {
   const plugins = {
     '_stuts.js': { help: [] },
@@ -92,7 +107,7 @@ test('all newly exposed command labels have an explicit, complete section assign
     soul: 0,
     anime: 3,
     economy: 0,
-    games: 8,
+    games: 4,
     group: 20,
     download: 4,
     media: 0,
@@ -103,6 +118,6 @@ test('all newly exposed command labels have an explicit, complete section assign
   )
 
   assert.deepEqual(actual, expected)
-  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 61)
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 57)
   assert.equal(Object.hasOwn(MENU_HELP_OVERRIDES, 'Human ai.js'), false)
 })
