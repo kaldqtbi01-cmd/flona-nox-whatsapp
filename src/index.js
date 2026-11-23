@@ -235,7 +235,9 @@ function bindHandlers(sock) {
     if (!sock) return
     if (sock.handler) sock.ev.off("messages.upsert", sock.handler)
     if (sock.statusHandler) sock.ev.off("messages.upsert", sock.statusHandler)
+    if (sock.messageUpdateHandler) sock.ev.off("messages.update", sock.messageUpdateHandler)
     sock.handler = handler.handler.bind(sock)
+    sock.messageUpdateHandler = handler.messagesUpdate.bind(sock)
     sock.statusHandler = async (update) => {
         try {
             const settings = global.db?.data?.settings?.[sock.user?.jid] || {}
@@ -255,6 +257,7 @@ function bindHandlers(sock) {
     // الرسائل الخاصة والمجموعات تمر كلها عبر نفس المعالج (m.isGroup يحدد النوع)
     sock.ev.on("messages.upsert", sock.handler)
     sock.ev.on("messages.upsert", sock.statusHandler)
+    sock.ev.on("messages.update", sock.messageUpdateHandler)
 }
 
 global._lastMsgTime = Date.now()
