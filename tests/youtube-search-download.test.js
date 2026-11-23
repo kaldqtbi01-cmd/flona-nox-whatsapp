@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { access, mkdir, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import ffmpegPath from 'ffmpeg-static'
 import { downloadYoutubeBySearch } from '../lib/youtube-search-download.js'
 import mediaHandler from '../plugins/youtube-media-search.js'
 
@@ -25,7 +27,9 @@ test('yt-dlp search downloads the selected YouTube video locally and cleans up',
   assert.equal(result.mimetype, 'video/mp4')
   assert.equal(calls[0].args.at(-1), 'ytsearch1:Fairuz')
   assert.ok(calls[1].args.includes('https://www.youtube.com/watch?v=abcdefghijk'))
-  assert.ok(calls[1].args.includes('best[height<=720][ext=mp4]/best[height<=720]/best'))
+  assert.ok(calls[1].args.includes('bestvideo[height<=240][ext=mp4]+worstaudio[ext=m4a]/bestvideo[height<=240]+worstaudio/best[height<=240][ext=mp4]/best[height<=240]/best'))
+  assert.ok(calls[1].args.includes('--merge-output-format'))
+  assert.equal(calls[1].args.includes('--ffmpeg-location'), Boolean(process.env.FFMPEG_PATH || (ffmpegPath && existsSync(ffmpegPath))))
   await access(result.filePath)
   await result.cleanup()
   await assert.rejects(access(result.filePath))
