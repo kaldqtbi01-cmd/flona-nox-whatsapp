@@ -11,6 +11,7 @@ import {
   getFfmpegPath,
   imageToPdf,
   imageToPng,
+  imageToWebp,
   textToQrPng,
 } from '../lib/atlas-local-converters.js'
 
@@ -60,6 +61,14 @@ test('WebP الثابت: يتحول إلى PNG', async () => {
   const png = await imageToPng(staticWebp, 'webp', { ffmpegPath: ffmpeg })
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
   assert.ok(png.length > 100)
+})
+
+test('PNG: يتحول محليًا إلى WebP صالح بأبعاد الملصق', async () => {
+  const png = await imageToPng(staticWebp, 'webp', { ffmpegPath: ffmpeg })
+  const webp = await imageToWebp(png, { ffmpegPath: ffmpeg })
+  assert.equal(webp.subarray(0, 4).toString('ascii'), 'RIFF')
+  assert.equal(webp.subarray(8, 12).toString('ascii'), 'WEBP')
+  assert.ok(webp.length > 100)
 })
 
 test('الصوت: يتحول من WAV إلى MP3 قابل للقراءة', async () => {
