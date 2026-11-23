@@ -107,8 +107,8 @@ handler.before = async function (m) {
   return true;
 };
 
-handler.help = ['احزر_الشخصية'];
+handler.help = ['حزر'];
 handler.tags = ['games'];
-handler.command = /^(احزر_الشخصية|whois)$/i;
+handler.command = /^(حزر|whois)$/i;
 
 export default handler;
