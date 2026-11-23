@@ -1,21 +1,25 @@
 const handler = async (m, { conn, groupMetadata, participants = [] }) => {
   try {
-    const metadata = groupMetadata || await conn.groupMetadata(m.chat);
-    const owner = metadata.owner ? `@${metadata.owner.split('@')[0]}` : 'غير متاح';
-    const adminCount = participants.filter(member => member.admin).length;
-    const description = metadata.desc?.toString().trim() || 'لا يوجد وصف';
+    const metadata = groupMetadata?.subject
+      ? groupMetadata
+      : await conn.groupMetadata(m.chat);
+    const members = participants.length ? participants : (metadata.participants || []);
+    const ownerId = String(metadata.owner || '').split('@')[0].split(':')[0];
+    const botId = String(conn.user?.id || conn.user?.jid || '').split('@')[0].split(':')[0];
+    const owner = !ownerId ? 'غير متاح' : (ownerId === botId ? 'البوت (منشئ المجموعة)' : ownerId);
+    const adminCount = members.filter(member => member.admin).length;
+    const description = String(metadata.desc || '').trim() || 'لا يوجد وصف';
     const text = [
       `👥 *معلومات المجموعة: ${metadata.subject || 'بدون اسم'}*`,
-      `عدد الأعضاء: ${participants.length || metadata.participants?.length || 0}`,
+      `عدد الأعضاء: ${members.length}`,
       `عدد المشرفين: ${adminCount}`,
       `المالك: ${owner}`,
       `الوصف: ${description}`
     ].join('\n');
-    const mentions = metadata.owner ? [metadata.owner] : [];
-    await conn.sendMessage(m.chat, { text, mentions }, { quoted: m });
+    await conn.sendMessage(m.chat, { text }, { quoted: m });
   } catch (error) {
-    console.error('[معلومات المجموعة]', error);
-    await m.reply('❌ تعذر جلب معلومات المجموعة.');
+    console.error('[معلومات المجموعة]', error?.message || error);
+    await m.reply('❌ تعذر جلب معلومات المجموعة؛ أعد المحاولة.');
   }
 };
 
