@@ -23,17 +23,19 @@ test('main menu presents the FLONA identity, greeting, status and navigation in 
   assert.match(text, /🎀 𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓 🎀/)
 })
 
-test('category menu shows its command count and directs users to the button list', () => {
+test('category menu shows the command list with the active prefix and total count', () => {
   const text = formatCategoryMenuText({
     section: { title: 'الألعاب والترفيه', icon: '🎀' },
+    commands: ['تحدي', 'كرة8 <سؤال>'],
+    usedPrefix: '!',
     commandCount: 2
   })
 
   assert.match(text, /🎀 𝐅𝐋𝐎𝐍𝐀 🎀/)
   assert.match(text, /الألعاب والترفيه/)
   assert.match(text, /\*عدد الأوامر:\* 2/)
-  assert.match(text, /اختر الأمر من زر/)
-  assert.doesNotMatch(text, /تحدي|كرة8/)
+  assert.match(text, /💗  \*!تحدي\*/)
+  assert.match(text, /💗  \*!كرة8 <سؤال>\*/)
 })
 
 test('empty category still receives the branded layout and an accurate zero count', () => {

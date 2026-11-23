@@ -86,6 +86,8 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
   const commands = getMenuCommands(global.plugins || {}, tag)
   const txt = formatCategoryMenuText({
     section: MENU_SECTIONS[tag],
+    commands,
+    usedPrefix,
     commandCount: commands.length
   })
 

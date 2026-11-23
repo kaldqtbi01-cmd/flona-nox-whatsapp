@@ -14,14 +14,19 @@ test('all category commands appear in one clickable list with descriptions for c
   assert.ok(rows.every(row => !row.id.includes('menu ')))
 })
 
-test('section body contains instructions but does not list commands as text', () => {
+test('section body shows commands while the same commands remain available as buttons', () => {
+  const commands = ['طقس <اسم المدينة>', 'معلومات المجموعة']
   const text = formatCategoryMenuText({
     section: { title: 'الأدوات', icon: '✨' },
-    commandCount: 17
+    commands,
+    usedPrefix: '.',
+    commandCount: commands.length
   })
-  assert.match(text, /عدد الأوامر:\* 17/)
-  assert.match(text, /اختر الأمر من زر/)
-  assert.doesNotMatch(text, /\.أمر1/)
+  const rows = getMenuCommandButtonRows(commands, '.')
+  assert.match(text, /عدد الأوامر:\* 2/)
+  assert.match(text, /\.طقس <اسم المدينة>/)
+  assert.match(text, /\.معلومات المجموعة/)
+  assert.deepEqual(rows.map(row => row.id), ['.طقس', '.معلومات'])
 })
 
 test('empty sections state that no command buttons are available', () => {
