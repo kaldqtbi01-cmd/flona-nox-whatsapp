@@ -638,6 +638,29 @@ export async function deleteUpdate(message) {
   } catch {}
 }
 
+export async function messagesUpdate(updates = []) {
+    for (const entry of updates || []) {
+        try {
+            const protocol = entry?.update?.message?.protocolMessage
+            const editType = proto?.ProtocolMessage?.Type?.MESSAGE_EDIT ?? 14
+            if (!protocol || Number(protocol.type) !== Number(editType)) continue
+            const key = protocol.key || entry.key || {}
+            const chatJid = key.remoteJid || entry.key?.remoteJid
+            if (!chatJid || chatJid === 'status@broadcast') continue
+            const chat = global.db?.data?.chats?.[chatJid]
+            if (!chat?.antiEditNotice) continue
+            const sender = key.participant || (key.fromMe ? this.user?.jid : chatJid)
+            const who = sender ? `@${String(sender).split('@')[0]}` : 'عضو'
+            await this.sendMessage(chatJid, {
+                text: `✏️ تم تعديل رسالة بواسطة ${who}.`,
+                ...(sender ? { mentions: [sender] } : {})
+            }).catch(() => {})
+        } catch (error) {
+            console.error('[ANTI-EDIT]', error?.message || error)
+        }
+    }
+}
+
 export async function groupsUpdate(groupsUpdate) {
   for (const groupUpdate of groupsUpdate) {
     const id = groupUpdate.id
