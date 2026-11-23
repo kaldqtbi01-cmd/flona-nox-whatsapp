@@ -25,7 +25,8 @@ test('yt-dlp search downloads the selected YouTube video locally and cleans up',
   })
   assert.equal(result.title, 'Fairuz song')
   assert.equal(result.mimetype, 'video/mp4')
-  assert.equal(calls[0].args.at(-1), 'ytsearch1:Fairuz')
+  assert.equal(calls[0].args.at(-1), 'ytsearch5:Fairuz')
+  assert.ok(calls[0].args.includes('--flat-playlist'))
   assert.ok(calls[1].args.includes('https://www.youtube.com/watch?v=abcdefghijk'))
   assert.ok(calls[1].args.includes('bestvideo[height<=240][ext=mp4]+worstaudio[ext=m4a]/bestvideo[height<=240]+worstaudio/best[height<=240][ext=mp4]/best[height<=240]/best'))
   assert.ok(calls[1].args.includes('--merge-output-format'))
@@ -56,13 +57,40 @@ test('yt-dlp audio mode selects m4a audio and validates YouTube host', async () 
   await result.cleanup()
 })
 
+test('skips an unavailable first result and downloads the next YouTube result', async () => {
+  const attempted = []
+  const result = await downloadYoutubeBySearch('Hello Kitty', {
+    ensureBinary: async () => '/verified/yt-dlp',
+    runCommand: async (_binary, args) => {
+      if (args.includes('--dump-single-json')) {
+        return { stdout: JSON.stringify({ entries: [
+          { id: 'abcdefghijk', url: 'abcdefghijk', title: 'Unavailable', duration: 100 },
+          { id: 'lmnopqrstuv', url: 'lmnopqrstuv', title: 'Available', duration: 100 },
+        ] }) }
+      }
+      const url = args.at(-1)
+      attempted.push(url)
+      if (url.includes('abcdefghijk')) throw new Error('This video is not available')
+      const template = args[args.indexOf('-o') + 1]
+      await mkdir(dirname(template), { recursive: true })
+      await writeFile(template.replace('%(ext)s', 'mp4'), Buffer.from('video'))
+      return { stdout: '' }
+    },
+  })
+  assert.deepEqual(attempted, [
+    'https://www.youtube.com/watch?v=abcdefghijk',
+    'https://www.youtube.com/watch?v=lmnopqrstuv',
+  ])
+  assert.equal(result.title, 'Available')
+  await result.cleanup()
+})
+
 test('direct YouTube links are accepted and playback commands are renamed', async () => {
   const calls = []
   const result = await downloadYoutubeBySearch('https://youtu.be/abcdefghijk', {
     ensureBinary: async () => '/verified/yt-dlp',
     runCommand: async (_binary, args) => {
       calls.push(args)
-      if (calls.length === 1) return { stdout: JSON.stringify({ title: 'Linked video', id: 'abcdefghijk', webpage_url: 'https://youtu.be/abcdefghijk' }) }
       const template = args[args.indexOf('-o') + 1]
       const file = template.replace('%(ext)s', 'mp4')
       await mkdir(dirname(file), { recursive: true })
