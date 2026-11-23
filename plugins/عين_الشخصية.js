@@ -101,8 +101,8 @@ handler.before = async function (m) {
   return true;
 };
 
-handler.help = ['عين_الشخصية'];
+handler.help = ['نضر'];
 handler.tags = ['games'];
-handler.command = /^(عين_الشخصية|خمن_الشخصية|guesscharacter)$/i;
+handler.command = /^(نضر|خمن_الشخصية|guesscharacter)$/i;
 
 export default handler;
