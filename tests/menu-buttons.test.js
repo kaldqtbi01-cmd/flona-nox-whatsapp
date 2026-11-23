@@ -2,35 +2,32 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { formatCategoryMenuText, getMenuCommandButtonRows } from '../lib/menu-presentation.js'
 
-test('category command buttons execute commands and paginate within WhatsApp list limits', () => {
-  const commands = Array.from({ length: 17 }, (_, index) => `أمر${index + 1} <نص>`)
+test('all category commands appear in one clickable list with descriptions for commands that need them', () => {
+  const commands = Array.from({ length: 17 }, (_, index) => `أمر${index + 1} <النص المطلوب>`)
+  const rows = getMenuCommandButtonRows(commands, '.')
 
-  const firstPage = getMenuCommandButtonRows(commands, 0, 3, 'tools', '.')
-  assert.equal(firstPage.length, 9)
-  assert.equal(firstPage[0].title, '.أمر1')
-  assert.equal(firstPage[0].id, '.أمر1')
-  assert.equal(firstPage.at(-1).id, '.menu tools 1')
-
-  const middlePage = getMenuCommandButtonRows(commands, 1, 3, 'tools', '.')
-  assert.equal(middlePage.length, 10)
-  assert.equal(middlePage[0].id, '.أمر9')
-  assert.equal(middlePage.at(-2).id, '.menu tools 0')
-  assert.equal(middlePage.at(-1).id, '.menu tools 2')
-
-  const finalPage = getMenuCommandButtonRows(commands, 2, 3, 'tools', '.')
-  assert.equal(finalPage.length, 2)
-  assert.equal(finalPage[0].id, '.أمر17')
-  assert.equal(finalPage[1].id, '.menu tools 1')
+  assert.equal(rows.length, 17)
+  assert.equal(rows[0].title, '.أمر1')
+  assert.equal(rows[0].id, '.أمر1')
+  assert.equal(rows[0].description, 'النص المطلوب')
+  assert.equal(rows.at(-1).id, '.أمر17')
+  assert.ok(rows.every(row => !row.id.includes('menu ')))
 })
 
-test('section menu text reports total commands and the current page', () => {
+test('section body contains instructions but does not list commands as text', () => {
   const text = formatCategoryMenuText({
     section: { title: 'الأدوات', icon: '✨' },
-    commands: ['طقس <مدينة>'],
-    commandCount: 17,
-    pageNumber: 2,
-    pageCount: 3
+    commandCount: 17
   })
-  assert.match(text, /عدد الأوامر:\* 17 • الصفحة 2\/3/)
-  assert.match(text, /\.طقس <مدينة>/)
+  assert.match(text, /عدد الأوامر:\* 17/)
+  assert.match(text, /اختر الأمر من زر/)
+  assert.doesNotMatch(text, /\.أمر1/)
+})
+
+test('empty sections state that no command buttons are available', () => {
+  const text = formatCategoryMenuText({
+    section: { title: 'قسم فارغ', icon: '✨' },
+    commandCount: 0
+  })
+  assert.match(text, /لا توجد أوامر في هذا القسم حالياً/)
 })

@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
 import { MENU_SECTIONS, getMenuCategories, getMenuCommands, normalizeMenuSection } from '../lib/menu-categories.js'
-import { formatCategoryMenuText, formatMainMenuText, formatUptime, getMenuCommandButtonRows, MENU_COMMANDS_PER_PAGE } from '../lib/menu-presentation.js'
+import { formatCategoryMenuText, formatMainMenuText, formatUptime, getMenuCommandButtonRows } from '../lib/menu-presentation.js'
 
 const VIDEO_URL = 'https://files.catbox.moe/9n2xcd.mp4'
 const BRAND_NAME = global.botName || '𝐅𝐋𝐎𝐍𝐀 𝐁𝐎𝐓'
@@ -52,11 +52,11 @@ async function ensureCategoryImage(tag) {
   throw new Error(`Missing image for menu section: ${tag}`)
 }
 
-function isDuplicateMenuRequest(m, tag, page) {
+function isDuplicateMenuRequest(m, tag) {
   const now = Date.now()
   // Native-flow responses can arrive as separate WhatsApp events with
   // different message IDs. Deduplicate by the actual action, not the event ID.
-  const key = `${m.chat}:${m.sender}:${tag}:${page}`
+  const key = `${m.chat}:${m.sender}:${tag}`
   const previous = recentMenuRequests.get(key)
   recentMenuRequests.set(key, now)
 
@@ -82,18 +82,11 @@ function getCategoryRows(tags, usedPrefix = '.') {
   })
 }
 
-async function sendCategoryMenu(m, conn, tag, usedPrefix = '.', requestedPage = 0) {
+async function sendCategoryMenu(m, conn, tag, usedPrefix = '.') {
   const commands = getMenuCommands(global.plugins || {}, tag)
-  const pageCount = Math.max(1, Math.ceil(commands.length / MENU_COMMANDS_PER_PAGE))
-  const page = Math.max(0, Math.min(pageCount - 1, Number(requestedPage) || 0))
-  const pageCommands = commands.slice(page * MENU_COMMANDS_PER_PAGE, (page + 1) * MENU_COMMANDS_PER_PAGE)
   const txt = formatCategoryMenuText({
     section: MENU_SECTIONS[tag],
-    commands: pageCommands,
-    usedPrefix,
-    commandCount: commands.length,
-    pageNumber: page + 1,
-    pageCount
+    commandCount: commands.length
   })
 
   try {
@@ -104,7 +97,7 @@ async function sendCategoryMenu(m, conn, tag, usedPrefix = '.', requestedPage = 
     )
 
     const allTags = getActiveTags()
-    const commandRows = getMenuCommandButtonRows(commands, page, pageCount, tag, usedPrefix)
+    const commandRows = getMenuCommandButtonRows(commands, usedPrefix)
     const msg = generateWAMessageFromContent(m.chat, {
       viewOnceMessage: {
         message: {
@@ -155,10 +148,8 @@ let handler = async (m, { conn, usedPrefix, args }) => {
   try {
     const tag = normalizeMenuSection(args[0]?.trim())
     if (tag && MENU_SECTIONS[tag]) {
-      const requestedPage = Number.parseInt(args[1], 10) || 0
-      const page = Math.max(0, requestedPage)
-      if (isDuplicateMenuRequest(m, tag, page)) return
-      return await sendCategoryMenu(m, conn, tag, usedPrefix, page)
+      if (isDuplicateMenuRequest(m, tag)) return
+      return await sendCategoryMenu(m, conn, tag, usedPrefix)
     }
 
     const uptimeStr = formatUptime(process.uptime())
