@@ -2,23 +2,25 @@ import { downloadYoutubeBySearch } from '../lib/youtube-search-download.js'
 
 const handler = async (m, { conn, text = '', command = '' }) => {
   const query = String(text || m.quoted?.text || m.quoted?.body || '').trim()
-  const audioOnly = String(command).toLowerCase() === 'تشغيل_صوت'
+  const audioOnly = String(command).toLowerCase() === 'اغنية'
+  const kind = audioOnly ? 'الأغنية' : 'الفيديو'
   if (!query) {
-    return m.reply(`اكتب اسم ${audioOnly ? 'الأغنية' : 'الفيديو'} بعد الأمر.\nمثال: .${command || (audioOnly ? 'تشغيل_صوت' : 'تشغيل')} Fairuz`)
+    return m.reply(`اكتب اسم ${kind} أو رابط YouTube بعد الأمر.\nمثال: .${command || (audioOnly ? 'اغنية' : 'فيديو')} Fairuz`)
   }
 
   let media
   try {
-    await m.reply(`⏳ أبحث عن ${audioOnly ? 'الأغنية' : 'الفيديو'} وأجهزه للإرسال...`)
+    await m.reply(`⏳ أبحث عن ${kind} وأجهزه للإرسال...`)
     media = await downloadYoutubeBySearch(query, { audioOnly })
+    const safeTitle = media.title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').trim().slice(0, 100) || 'youtube-media'
     const payload = audioOnly
-      ? { audio: { url: media.filePath }, mimetype: media.mimetype, fileName: `${media.title}.m4a`, ptt: false }
+      ? { audio: { url: media.filePath }, mimetype: media.mimetype, fileName: `${safeTitle}.m4a`, ptt: false }
       : { video: { url: media.filePath }, mimetype: media.mimetype, caption: `🎬 ${media.title}` }
     await conn.sendMessage(m.chat, payload, { quoted: m })
     return 1
   } catch (error) {
     const reason = String(error?.message || 'تعذر البحث والتنزيل من YouTube.').slice(0, 500)
-    await m.reply(`❌ تعذر تشغيل الوسائط من YouTube.\n${reason}`)
+    await m.reply(`❌ تعذر إرسال ${kind} من YouTube.\n${reason}`)
     return 0
   } finally {
     if (media?.cleanup) await media.cleanup().catch(() => {})
@@ -26,10 +28,10 @@ const handler = async (m, { conn, text = '', command = '' }) => {
 }
 
 handler.help = [
-  'تشغيل <اسم فيديو YouTube>',
-  'تشغيل_صوت <اسم أغنية YouTube>',
+  'فيديو <اسم أو رابط YouTube>',
+  'اغنية <اسم أو رابط YouTube>',
 ]
 handler.tags = ['download']
-handler.command = /^(تشغيل|تشغيل_صوت)$/i
+handler.command = /^(فيديو|اغنية)$/i
 
 export default handler

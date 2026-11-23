@@ -350,8 +350,8 @@ async function downloadSoundCloud(trackUrl, trackData = null) {
   throw new Error('فشلت جميع طرق التحميل')
 }
 
-handler.help = ['ساوند <اسم الأغنية>']
+handler.help = ['ساوند <رابط SoundCloud>', 'ساوند_اغنية <رابط SoundCloud>']
 handler.tags = ['downloader']
-handler.command = /^(soundcloud|ساوند|اغنية|sound|sc)$/i
+handler.command = /^(soundcloud|ساوند|ساوند_اغنية|sound|sc)$/i
 
 export default handler

@@ -3,6 +3,7 @@ import test from 'node:test'
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { downloadYoutubeBySearch } from '../lib/youtube-search-download.js'
+import mediaHandler from '../plugins/youtube-media-search.js'
 
 test('yt-dlp search downloads the selected YouTube video locally and cleans up', async () => {
   const calls = []
@@ -48,6 +49,28 @@ test('yt-dlp audio mode selects m4a audio and validates YouTube host', async () 
   })
   assert.equal(result.audioOnly, true)
   assert.equal(result.mimetype, 'audio/mp4')
+  await result.cleanup()
+})
+
+test('direct YouTube links are accepted and playback commands are renamed', async () => {
+  const calls = []
+  const result = await downloadYoutubeBySearch('https://youtu.be/abcdefghijk', {
+    ensureBinary: async () => '/verified/yt-dlp',
+    runCommand: async (_binary, args) => {
+      calls.push(args)
+      if (calls.length === 1) return { stdout: JSON.stringify({ title: 'Linked video', id: 'abcdefghijk', webpage_url: 'https://youtu.be/abcdefghijk' }) }
+      const template = args[args.indexOf('-o') + 1]
+      const file = template.replace('%(ext)s', 'mp4')
+      await mkdir(dirname(file), { recursive: true })
+      await writeFile(file, Buffer.from('video'))
+      return { stdout: '' }
+    },
+  })
+  assert.equal(calls[0].at(-1), 'https://youtu.be/abcdefghijk')
+  assert.equal(mediaHandler.command.test('فيديو'), true)
+  assert.equal(mediaHandler.command.test('اغنية'), true)
+  assert.equal(mediaHandler.command.test('تشغيل'), false)
+  assert.equal(mediaHandler.command.test('تشغيل_صوت'), false)
   await result.cleanup()
 })
 

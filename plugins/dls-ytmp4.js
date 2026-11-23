@@ -140,8 +140,8 @@ m)
     }
 }
 
-handler.help = ['فيد <رابط الفيديو>\<اسم الفيديو>']
+handler.help = ['فيد <رابط الفيديو>', 'تنزيل_فيديو <رابط الفيديو>']
 handler.tags = ['download']
-handler.command = ['ytvideo','فيد','فيديو','ytv','ytmp4']
+handler.command = ['ytvideo','فيد','تنزيل_فيديو','ytv','ytmp4']
 
 export default handler

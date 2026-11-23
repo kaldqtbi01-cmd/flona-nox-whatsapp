@@ -13,7 +13,7 @@ let handler = async (m, { conn, usedPrefix }) => {
     '🔗│ ' + usedPrefix + 'يوتيوب <رابط>\n' +
     '🔗│ ' + usedPrefix + 'احكي>\n' +
     '🔗│ ' + usedPrefix + 'بحث <كلمة>\n' +
-    '🔗│ ' + usedPrefix + 'ساوند <اسم اغنية>\n' +
+    '🔗│ ' + usedPrefix + 'ساوند <رابط SoundCloud>\n' +
     '🔗│ ' + usedPrefix + 'انستا <رابط>\n' +
     '🔗│ ' + usedPrefix + 'فيس <رابط>\n' +
     '🔗│ ' + usedPrefix + 'تويتر <رابط>\n' +
@@ -22,8 +22,8 @@ let handler = async (m, { conn, usedPrefix }) => {
     '🔗│ ' + usedPrefix + 'xdl <رابط من X>\n' +
     '🔗│ ' + usedPrefix + 'pindl <رابط من Pinterest>\n' +
     '🔗│ ' + usedPrefix + 'تنزيل_صوت <رابط YouTube>\n' +
-    '🔗│ ' + usedPrefix + 'تشغيل <اسم فيديو YouTube>\n' +
-    '🔗│ ' + usedPrefix + 'تشغيل_صوت <اسم أغنية YouTube>\n\n' +
+    '🔗│ ' + usedPrefix + 'فيديو <اسم أو رابط YouTube>\n' +
+    '🔗│ ' + usedPrefix + 'اغنية <اسم أو رابط YouTube>\n\n' +
     '🔗│ ' + usedPrefix + 'تحميل\n\n' +    
     '> 🔗 ' + botName + ' 🔗'
 
