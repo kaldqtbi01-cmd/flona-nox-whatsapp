@@ -29,6 +29,10 @@ const SEEN_MESSAGES = new Map()
 const PREFIXES = /^[#!./-]/
 let lastProviderSuccess = null
 
+function getActiveAIProviders() {
+  return global.aiProviders || aiProviders
+}
+
 function providerStateLine(label, state) {
   const availability = !state.configured
     ? 'المفتاح غير مضبوط'
@@ -299,7 +303,7 @@ async function handleCommand(m, ctx) {
     return send(m, conn, memory.length ? `🧠 ذاكرة لوكا:\n${memory.map(item => `• ${item}`).join('\n')}` : '🧠 لا توجد ذاكرة محفوظة مفيدة لهذه المجموعة')
   }
   if (cmd === 'حالة_الذكاء') {
-    const providers = aiProviders.status()
+    const providers = getActiveAIProviders().status()
     const personality = getActivePersonality(settings)
     const mood = settings.mood === 'auto' ? 'تلقائي — يتحدد من كل رسالة' : (MOODS[settings.mood] || settings.mood)
     const dialect = DIALECTS[settings.dialect]?.label || settings.dialect || 'تلقائية'
@@ -446,11 +450,12 @@ handler.all = async function (m, ctx = {}) {
         const imagePart = settings.allowMedia ? await getMediaPart(m) : null
         const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }]
         let result
+        const activeProviders = getActiveAIProviders()
         const aiStartedAt = Date.now()
         try {
-          result = await aiProviders.geminiGenerate({ contents: [{ role: 'user', parts }], systemInstruction, temperature: 0.65, maxTokens: 500, fastFailover: true })
+          result = await activeProviders.geminiGenerate({ contents: [{ role: 'user', parts }], systemInstruction, temperature: 0.65, maxTokens: 500, fastFailover: true })
         } catch {
-          result = await aiProviders.groqChat({
+          result = await activeProviders.groqChat({
             messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
             temperature: 0.65,
             maxTokens: 500,
@@ -466,7 +471,7 @@ handler.all = async function (m, ctx = {}) {
         if (!reply || isRepeatedReply(settings, reply)) return
         await connection.sendMessage(m.chat, { text: reply }, { quoted: m })
         const provider = result?.provider
-        const model = result?.model || aiProviders.status()[provider]?.model
+        const model = result?.model || activeProviders.status()[provider]?.model
         lastProviderSuccess = { provider, model, at: Date.now() }
         rememberReply(settings, reply)
         rememberContext(chat, senderName, text, reply)
