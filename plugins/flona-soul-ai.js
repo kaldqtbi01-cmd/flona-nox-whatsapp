@@ -1,5 +1,8 @@
 import { aiProviders } from '../lib/ai-providers.js'
 import { createChatQueue } from '../lib/ai-queue.js'
+import { downloadYoutubeBySearch } from '../lib/youtube-search-download.js'
+import { parseLukaMediaRequest, sendLukaMediaRequest } from '../lib/luka-media.js'
+import { pinterestScraper } from './بينترست.js'
 import {
   DIALECTS,
   MOODS,
@@ -24,6 +27,16 @@ const CHAT_QUEUE = createChatQueue({ maxDepth: 20 })
 const RATE = new Map()
 const SEEN_MESSAGES = new Map()
 const PREFIXES = /^[#!./-]/
+let lastProviderSuccess = null
+
+function providerStateLine(label, state) {
+  const availability = !state.configured
+    ? 'المفتاح غير مضبوط'
+    : state.cooldownMs > 0
+      ? `في تبريد (${Math.ceil(state.cooldownMs / 1000)} ث)`
+      : 'المفتاح مضبوط، لا يوجد تبريد'
+  return `${label}: ${availability} — النموذج المضبوط: ${state.model || 'غير محدد'}`
+}
 
 function ensureDb() {
   global.db ||= {}
@@ -128,6 +141,10 @@ function adminOnly(ctx) {
   return Boolean(ctx.isAdmin || ctx.isOwner || ctx.isROwner)
 }
 
+function ownerOrDeveloper(ctx) {
+  return Boolean(ctx.isOwner || ctx.isROwner)
+}
+
 async function saveDb() {
   if (typeof global.db?.write === 'function') await global.db.write()
 }
@@ -207,7 +224,10 @@ async function handleCommand(m, ctx) {
   const chat = getChat(m)
   const settings = getEffectiveSoulSettings(chat)
 
-  const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا', 'حذف_استثناءات_لوكا'])
+  const controlCommands = new Set(['ايقاف_الذكاء', 'تشغيل_الذكاء', 'اطفاء_الذكاء'])
+  if (controlCommands.has(cmd) && !ownerOrDeveloper(ctx)) return m.reply?.('❌ تشغيل لوكا أو إيقافها متاح لمطور البوت أو مالكه فقط')
+
+  const adminCommands = new Set(['شخصية', 'لهجة', 'مزاج', 'مسح_ذاكرة_الذكاء', 'ذاكرة_الذكاء', 'سماح_لوكا', 'استثناء_لوكا', 'حذف_استثناءات_لوكا'])
   if (adminCommands.has(cmd) && !adminOnly(ctx)) return m.reply?.('❌ هذا الأمر للأدمن فقط')
 
   if (cmd === 'شخصيات') return send(m, conn, `🎭 شخصيات لوكا:\n${listLines(PERSONALITIES)}\n\nاستخدمي: .شخصية حكيمة\nأو: .شخصية تلقائية للاختيار حسب سياق الكلام`)
@@ -217,16 +237,14 @@ async function handleCommand(m, ctx) {
       const custom = value.slice('مخصصة '.length).trim()
       if (custom.length < 5) return send(m, conn, '❌ اكتبي وصفًا أطول للشخصية المخصصة')
       updateGlobalSoulStyle(chat, { personality: 'custom', customPersonality: custom.slice(0, 500) })
-      getSoulSettings(chat).enabled = true
       await saveDb()
-      return send(m, conn, '✅ تم حفظ الشخصية المخصصة كإعداد عام للوكا وتفعيلها في هذه المجموعة')
+      return send(m, conn, '✅ تم حفظ الشخصية المخصصة كإعداد عام للوكا. تشغيلها أو إيقافها يُضبط لكل مجموعة بأمر المالك/المطور')
     }
     const key = resolvePersonality(value)
     if (!key) return send(m, conn, '❌ الشخصية غير موجودة. استخدم .شخصيات')
     const personalityChanges = { personality: key }
     if (key === 'auto') {
       updateGlobalSoulStyle(chat, personalityChanges)
-      getSoulSettings(chat).enabled = true
       await saveDb()
       return send(m, conn, '✅ تم جعل الشخصية التلقائية إعدادًا عامًا؛ ستختار لوكا الأسلوب الأنسب في كل مجموعة مفعّلة، مع الحفاظ على اللهجة المحددة. للرجوع لشخصية ثابتة: .شخصية حكيمة')
     }
@@ -235,7 +253,6 @@ async function handleCommand(m, ctx) {
       Object.assign(personalityChanges, selected.sliders)
     }
     updateGlobalSoulStyle(chat, personalityChanges)
-    getSoulSettings(chat).enabled = true
     await saveDb()
     return send(m, conn, `✅ تم اختيار شخصية لوكا العامة: ${PERSONALITIES[key].label} — ستُطبّق في كل المجموعات التي تعمل فيها لوكا`)
   }
@@ -282,7 +299,21 @@ async function handleCommand(m, ctx) {
     return send(m, conn, memory.length ? `🧠 ذاكرة لوكا:\n${memory.map(item => `• ${item}`).join('\n')}` : '🧠 لا توجد ذاكرة محفوظة مفيدة لهذه المجموعة')
   }
   if (cmd === 'حالة_الذكاء') {
-    return send(m, conn, `🤖 FLONA SOUL AI — لوكا\nالحالة: ${settings.enabled ? (settings.paused ? 'مجمّدة' : 'مفعّلة') : 'متوقفة'}\nالشخصية: ${getActivePersonality(settings).label}\nاللهجة: ${DIALECTS[settings.dialect]?.label}\nالمزاج: ${settings.mood === 'auto' ? 'تلقائي' : MOODS[settings.mood]}\nنطاق الشخصية والمزاج واللهجة: عام (في كل المجموعات)\nالذاكرة: ${settings.memoryEnabled ? 'مفعّلة' : 'متوقفة'}\nالمزود الأساسي: Gemini Flash 3.1\nالاحتياطي: Groq`)
+    const providers = aiProviders.status()
+    const personality = getActivePersonality(settings)
+    const mood = settings.mood === 'auto' ? 'تلقائي — يتحدد من كل رسالة' : (MOODS[settings.mood] || settings.mood)
+    const dialect = DIALECTS[settings.dialect]?.label || settings.dialect || 'تلقائية'
+    const queue = CHAT_QUEUE.stats(m.chat)
+    const rate = RATE.get(m.chat)
+    const rateWindowMs = Math.max(1, Number(settings.requests?.windowMs) || 60_000)
+    const rateMax = Math.max(1, Number(settings.requests?.max) || 17)
+    const rateCount = rate && Date.now() - rate.start <= rateWindowMs ? rate.count : 0
+    const memoryCount = getSoulMemory(chat).length
+    const personalityStyle = String(personality.style || '').replace(/\s+/g, ' ').trim()
+    const lastUsed = lastProviderSuccess
+      ? `${lastProviderSuccess.provider || 'غير معروف'}${lastProviderSuccess.model ? ` (${lastProviderSuccess.model})` : ''} — ${new Date(lastProviderSuccess.at).toLocaleString('ar', { timeZone: 'Asia/Riyadh' })}`
+      : 'لا يوجد رد ناجح منذ آخر تشغيل للبوت'
+    return send(m, conn, `🤖 FLONA SOUL AI — حالة لوكا\nحالة لوكا في هذه المجموعة: ${settings.enabled ? (settings.paused ? 'مجمّدة مؤقتًا' : 'مفعّلة') : 'متوقفة'}\nالتفاعل: ${settings.enabled && !settings.paused ? 'تستقبل رسائل لوكا' : 'لن ترد حاليًا'}\nالشخصية: ${personality.label}${settings.personality === 'auto' ? ' — تختار الأسلوب حسب سياق كل رسالة' : ''}\nوصف الأسلوب: ${personalityStyle || 'غير متوفر'}\nاللهجة العامة: ${dialect}${settings.dialect === 'auto' ? ' — تحاول مطابقة لهجة المرسل' : ''}\nالمزاج العام: ${mood}\nنطاق الشخصية والمزاج واللهجة: عام (إعداد مشترك بين المجموعات)\nالذاكرة: ${settings.memoryEnabled ? `مفعّلة (${memoryCount} ذكرى محفوظة)` : 'متوقفة'}\nتحليل الصور: ${settings.allowMedia ? 'مسموح' : 'متوقف'}\nالسماح للمستخدمين: ${Array.isArray(settings.allowUsers) ? `${settings.allowUsers.length} مستخدم محدد` : 'كل الأعضاء عدا المستثنين'}\nالمستثنون: ${settings.excludedUsers.length}\nمعدل الطلبات الداخلي: ${rateCount}/${rateMax} خلال ${Math.round(rateWindowMs / 1000)} ثانية في هذه المجموعة\nطابور لوكا لهذه المجموعة: ${queue.depth} طلب — الحد الأقصى 20\nترتيب المحاولة: Gemini أولًا ← Groq احتياطيًا\nالنماذج المضبوطة: Gemini=${providers.gemini.model || 'غير محدد'}؛ Groq=${providers.groq.model || 'غير محدد'}\n${providerStateLine('Gemini', providers.gemini)}\n${providerStateLine('Groq', providers.groq)}\nآخر مزود نجح مع لوكا: ${lastUsed}\nملاحظة: «المفتاح مضبوط» تعني وجوده في البيئة فقط ولا تثبت صلاحيته أو وجود حصة متاحة.`)
   }
   if (cmd === 'سماح_لوكا') {
     const jid = m.mentionedJid?.[0]
@@ -374,6 +405,24 @@ handler.all = async function (m, ctx = {}) {
           await connection.sendMessage(m.chat, { text: 'أقدر فهم النص والصور حاليًا، لكن تحويل الصوت إلى نص غير متاح في هذه النسخة بعد.' }, { quoted: m })
           return
         }
+        const mediaRequest = parseLukaMediaRequest(text)
+        if (mediaRequest) {
+          try {
+            await sendLukaMediaRequest({
+              request: mediaRequest,
+              m,
+              conn: connection,
+              pinterestSearch: pinterestScraper,
+              youtubeDownload: downloadYoutubeBySearch,
+            })
+          } catch (error) {
+            const label = mediaRequest.kind === 'image' ? 'الصور' : mediaRequest.kind === 'video' ? 'الفيديو' : 'الأغنية'
+            const detail = String(error?.message || 'خطأ غير معروف').slice(0, 300)
+            console.error('[FLONA SOUL MEDIA]', detail)
+            await connection.sendMessage(m.chat, { text: `❌ تعذّر إرسال ${label}.\n${detail}` }, { quoted: m }).catch(() => {})
+          }
+          return
+        }
         const mood = detectMood(text, settings)
         const personality = getActivePersonality(settings)
         const dialect = DIALECTS[settings.dialect] || DIALECTS.auto
@@ -416,6 +465,9 @@ handler.all = async function (m, ctx = {}) {
         const reply = String(result?.text || '').trim()
         if (!reply || isRepeatedReply(settings, reply)) return
         await connection.sendMessage(m.chat, { text: reply }, { quoted: m })
+        const provider = result?.provider
+        const model = result?.model || aiProviders.status()[provider]?.model
+        lastProviderSuccess = { provider, model, at: Date.now() }
         rememberReply(settings, reply)
         rememberContext(chat, senderName, text, reply)
         addSoulMemory(chat, text)

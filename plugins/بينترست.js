@@ -78,6 +78,8 @@ async function pinterestScraper(query, limit = 10) {
   }
 }
 
+export { pinterestScraper }
+
 const handler = async (m, { conn, text }) => {
   const query = text?.trim()
 

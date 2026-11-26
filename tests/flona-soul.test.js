@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { aiProviders } from '../lib/ai-providers.js'
 import soulHandler from '../plugins/flona-soul-ai.js'
+import rareFeaturesHandler from '../plugins/الميزات-النادرة.js'
+import { parseLukaMediaRequest, sendLukaMediaRequest } from '../lib/luka-media.js'
 import {
   PERSONALITIES,
   DIALECTS,
@@ -18,7 +21,7 @@ import {
 } from '../lib/flona-soul-engine.js'
 
 test('FLONA SOUL يعرض شخصيات مؤنثة ووضع الشخصية التلقائية', () => {
-  assert.equal(Object.keys(PERSONALITIES).filter(key => key !== 'auto').length, 10)
+  assert.equal(Object.keys(PERSONALITIES).filter(key => key !== 'auto').length, 11)
   assert.equal(PERSONALITIES.auto.label, 'تلقائية حسب السياق')
   for (const personality of Object.values(PERSONALITIES)) {
     assert.ok(personality.style)
@@ -51,9 +54,23 @@ test('محرك الشخصيات والمزاج يحل الأسماء العرب�
   assert.equal(resolvePersonality('حكيمة'), 'wise')
   assert.equal(resolvePersonality('تلقائي'), 'auto')
   assert.equal(resolvePersonality('auto'), 'auto')
+  assert.equal(resolvePersonality('oblique'), 'oblique')
+  assert.equal(resolvePersonality('منحرفة'), 'oblique')
   assert.equal(resolveMood('سعيد'), 'happy')
   assert.equal(resolveMood('سعيدة'), 'happy')
   assert.equal(resolveMood('تلقائي'), 'auto')
+})
+
+test('شخصية Oblique جريئة وموحية مع تعليمات موافقة وحدود واضحة', () => {
+  const settings = getSoulSettings({})
+  settings.personality = resolvePersonality('Oblique')
+
+  const prompt = buildSoulSystemPrompt(settings, '', 'calm', [])
+  assert.equal(getActivePersonality(settings).label, 'Oblique — منحرفة مشاكسة')
+  assert.match(prompt, /صريحة ومباشرة في الغزل والتعبير عن الانجذاب والرغبة/)
+  assert.match(prompt, /بلا سرد جنسي صريح/)
+  assert.match(prompt, /احترمي الموافقة والحدود/)
+  assert.match(prompt, /لا توجّهي هذا الأسلوب لقاصر/)
 })
 
 test('الشخصية التلقائية تعرض خيارات الأسلوب وتفصلها عن اللهجة', () => {
@@ -85,6 +102,15 @@ test('ذاكرة المجموعة تمنع الأسرار وتدعم المسح'
   assert.deepEqual(getSoulMemory(chat, 1001), [])
 })
 
+test('حد لوكا موحد لكل مجموعة: 17 رسالة خلال 60 ثانية مع ترحيل الإعدادات القديمة', () => {
+  const firstGroup = { soulAI: { requests: { windowMs: 60_000, max: 12 }, enabled: true } }
+  const secondGroup = {}
+
+  assert.deepEqual(getSoulSettings(firstGroup).requests, { windowMs: 60_000, max: 17 })
+  assert.deepEqual(getSoulSettings(secondGroup).requests, { windowMs: 60_000, max: 17 })
+  assert.equal(firstGroup.soulAI.enabled, true)
+})
+
 test('System Prompt يثبت الشخصية واللهجة وحماية التعليمات', () => {
   const chat = {}
   const settings = getSoulSettings(chat)
@@ -97,6 +123,8 @@ test('System Prompt يثبت الشخصية واللهجة وحماية التع
   assert.match(prompt, /التزمي باللهجة/)
   assert.match(prompt, /أنتِ لوكا، شخصية أنثوية/)
   assert.match(prompt, /لا تصفي نفسك بصيغة المذكر/)
+  assert.match(prompt, /صوتك وصياغتك أنثويين بصورة طبيعية ومتزنة/)
+  assert.match(prompt, /لا متكلفة ولا مبالغًا فيها/)
   assert.match(prompt, /طول الرد لهذه الرسالة: مختصر/)
   assert.match(prompt, /طول الرد متناسبًا/)
   assert.match(prompt, /لا تبدئي أو تنهي الرد بعبارات محفوظة/)
@@ -176,6 +204,23 @@ test('بلوقن لوكا لا يرد على الرسالة العادية دا�
   delete global.db
 })
 
+test('طلب وسائط بلا منشن أو رد إلى لوكا لا يشغل البحث ولا يرسل شيئًا', async () => {
+  global.db = { data: { chats: { group1: { soulAI: { enabled: true } } } } }
+  let sent = 0
+  const conn = { user: { id: '999@s.whatsapp.net' }, sendMessage: async () => { sent += 1 } }
+  await soulHandler.all.call(conn, {
+    isGroup: true,
+    fromMe: false,
+    chat: 'group1',
+    sender: '111@s.whatsapp.net',
+    text: 'جيبي لي أغنية فيروز نسم علينا الهوى',
+    mentionedJid: [],
+    key: { id: 'media-no-mention' },
+  })
+  assert.equal(sent, 0)
+  delete global.db
+})
+
 test('أمر حذف استثناءات لوكا يمسح جميع المجموعات للمالك فقط ويحافظ على بقية الإعدادات', async () => {
   let writes = 0
   const chats = {
@@ -233,6 +278,35 @@ test('أمر حذف استثناءات لوكا بدون كلمة الكل يم�
   delete global.db
 })
 
+test('تشغيل وإيقاف لوكا للمطور/المالك فقط، وكل أمر يغيّر المجموعة الحالية دون غيرها', async () => {
+  let writes = 0
+  const chats = {
+    '111@g.us': { soulAI: { enabled: false, paused: false } },
+    '222@g.us': { soulAI: { enabled: true, paused: false } },
+  }
+  global.db = { data: { chats }, write: async () => { writes += 1 } }
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload.text) } }
+
+  await soulHandler({ isGroup: true, chat: '111@g.us', reply: async text => { sent.push(text) } }, { command: 'تشغيل_الذكاء', args: [], conn, isAdmin: true })
+  assert.equal(chats['111@g.us'].soulAI.enabled, false)
+  assert.match(sent.at(-1), /مطور البوت أو مالكه فقط/)
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'تشغيل_الذكاء', args: [], conn, isOwner: true })
+  assert.equal(chats['111@g.us'].soulAI.enabled, true)
+  assert.equal(chats['222@g.us'].soulAI.enabled, true)
+
+  await soulHandler({ isGroup: true, chat: '222@g.us' }, { command: 'اطفاء_الذكاء', args: [], conn, isROwner: true })
+  assert.equal(chats['222@g.us'].soulAI.enabled, false)
+  assert.equal(chats['111@g.us'].soulAI.enabled, true)
+
+  await soulHandler({ isGroup: true, chat: '111@g.us' }, { command: 'ايقاف_الذكاء', args: [], conn, isOwner: true })
+  assert.equal(chats['111@g.us'].soulAI.paused, true)
+  assert.equal(chats['222@g.us'].soulAI.paused, false)
+  assert.equal(writes, 3)
+  delete global.db
+})
+
 test('أمر اللهجة يقبل صنعاني ويحفظها كإعداد عام لكل المجموعات', async () => {
   let writes = 0
   global.db = { data: { chats: { '111@g.us': {}, '222@g.us': { soulAI: { dialect: 'gulf' } } } }, write: async () => { writes += 1 } }
@@ -278,11 +352,27 @@ test('تغييرات الشخصية والمزاج واللهجة تنعكس ف�
 
   await soulHandler({ isGroup: true, chat: '333@g.us' }, { command: 'حالة_الذكاء', args: [], conn })
   assert.equal(global.db.data.chats['333@g.us'].soulAI.personality, 'comedian')
+  assert.match(sent.at(-1), new RegExp(`النموذج المضبوط: ${aiProviders.status().gemini.model}`))
+  assert.match(sent.at(-1), /ترتيب المحاولة: Gemini أولًا ← Groq احتياطيًا/)
+  assert.match(sent.at(-1), /آخر مزود نجح مع لوكا: لا يوجد رد ناجح منذ آخر تشغيل للبوت/)
+  assert.match(sent.at(-1), /النماذج المضبوطة: Gemini=.*؛ Groq=/)
+  assert.doesNotMatch(sent.at(-1), /المزود الأساسي: Gemini Flash 3\.1/)
   assert.match(sent.at(-1), /كوميدية/)
   assert.match(sent.at(-1), /صنعانية/)
   assert.match(sent.at(-1), /حزينة/)
   assert.match(sent.at(-1), /نطاق الشخصية والمزاج واللهجة: عام/)
+  assert.match(sent.at(-1), /وصف الأسلوب:/)
+  assert.match(sent.at(-1), /حالة لوكا في هذه المجموعة:/)
+  assert.match(sent.at(-1), /معدل الطلبات الداخلي:/)
+  assert.match(sent.at(-1), /طابور لوكا لهذه المجموعة:/)
+  assert.match(sent.at(-1), /تحليل الصور:/)
   delete global.db
+})
+
+test('حالة الذكاء مخصصة لتقرير لوكا ولا تتعارض مع حالة طبقة AI العامة', () => {
+  assert.equal(soulHandler.command.test('حالة_الذكاء'), true)
+  assert.equal(rareFeaturesHandler.command.test('حالة_الذكاء'), false)
+  assert.equal(rareFeaturesHandler.command.test('حالة_طبقة_AI'), true)
 })
 
 test('أمر .شخصية تلقائي يفعّل الوضع ويحفظه دون تغيير اللهجة', async () => {
@@ -295,7 +385,7 @@ test('أمر .شخصية تلقائي يفعّل الوضع ويحفظه دون 
 
   const settings = global.db.data.chats['111@g.us'].soulAI
   assert.equal(settings.personality, 'auto')
-  assert.equal(settings.enabled, true)
+  assert.notEqual(settings.enabled, true)
   assert.equal(settings.dialect, 'sanaani')
   assert.equal(writes, 1)
   assert.match(sent[0], /الشخصية التلقائية/)
@@ -368,4 +458,88 @@ test('أمر إزالة الصانعة يرفض رقمًا لا يطابق ال�
   assert.equal(global.db.data.soulAICreatorNumber, '123456789')
   assert.match(sent[0], /لم أغيّر أي إعداد/)
   delete global.db
+})
+
+test('لوكا تميّز طلب الأغنية بالفنان والعنوان وتطابق صيغة «جيبي لي أغنية فيروز»', () => {
+  assert.deepEqual(parseLukaMediaRequest('يا لوكا جيبي لي أغنية فيروز نسم علينا الهوى'), {
+    kind: 'song', query: 'فيروز نسم علينا الهوى', count: 1,
+  })
+  assert.deepEqual(parseLukaMediaRequest('قبلها جيبي لي اغنية فيروز نسم علينا الهوى عشان انسجم'), {
+    kind: 'song', query: 'فيروز نسم علينا الهوى', count: 1,
+  })
+})
+
+test('لوكا تميّز طلب الفيديو والصورة، وتحد الصور إلى صورتين في الطلب الواحد', () => {
+  assert.deepEqual(parseLukaMediaRequest('لوكا جيبي لي فيديو عن صنعاء'), {
+    kind: 'video', query: 'صنعاء', count: 1,
+  })
+  assert.deepEqual(parseLukaMediaRequest('لوكا جيبي لي ٨ صور قطط من Pinterest'), {
+    kind: 'image', query: 'قطط', count: 2,
+  })
+  assert.deepEqual(parseLukaMediaRequest('جيبي لي ٣ صور قطط'), {
+    kind: 'image', query: 'قطط', count: 2,
+  })
+})
+
+test('لا تنفذ لوكا طلب وسائط عند مجرد ذكر صورة أو أغنية بلا فعل طلب', () => {
+  assert.equal(parseLukaMediaRequest('هذه صورة جميلة وأغنية فيروز رائعة'), null)
+  assert.equal(parseLukaMediaRequest('جيبي لي منصور'), null)
+})
+
+test('طلب الصور الحوارية يبحث من Pinterest ويرسل النتائج المطلوبة فقط', async () => {
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload) } }
+  const pinterestSearch = async (query, limit) => {
+    assert.equal(query, 'قطط صغيرة')
+    assert.equal(limit, 2)
+    return Array.from({ length: 5 }, (_, index) => ({
+      title: `قطة ${index + 1}`,
+      image_large_url: `https://i.pinimg.com/originals/cat-${index + 1}.jpg`,
+    }))
+  }
+
+  await sendLukaMediaRequest({
+    request: { kind: 'image', query: 'قطط صغيرة', count: 2 },
+    m: { chat: 'group@g.us' }, conn, pinterestSearch,
+    youtubeDownload: async () => { throw new Error('لا ينبغي استدعاء YouTube للصور') },
+  })
+
+  assert.equal(sent.filter(payload => payload.image).length, 2)
+  assert.ok(sent.every(payload => !payload.video && !payload.audio))
+  assert.match(sent[0].text, /Pinterest/)
+})
+
+test('طلبات الفيديو والأغنية تستخدم تنزيل YouTube بالوضع الصحيح وتنظف الملف', async () => {
+  for (const [kind, expectedAudioOnly] of [['video', false], ['song', true]]) {
+    const sent = []
+    const options = []
+    let cleaned = 0
+    const conn = { sendMessage: async (_chat, payload) => { sent.push(payload) } }
+    await sendLukaMediaRequest({
+      request: { kind, query: 'فيروز نسم علينا الهوى', count: 1 },
+      m: { chat: 'group@g.us' }, conn,
+      pinterestSearch: async () => { throw new Error('لا ينبغي استدعاء Pinterest') },
+      youtubeDownload: async (_query, option) => {
+        options.push(option)
+        return { filePath: '/tmp/media-test', title: 'Fairuz', cleanup: async () => { cleaned += 1 } }
+      },
+    })
+    assert.equal(options[0].audioOnly, expectedAudioOnly)
+    assert.equal(cleaned, 1)
+    assert.equal(Boolean(sent.at(-1).audio), expectedAudioOnly)
+    assert.equal(Boolean(sent.at(-1).video), !expectedAudioOnly)
+  }
+})
+
+test('طلب وسيط بلا اسم موضوع يسأل المستخدم ولا يستدعي أي مصدر', async () => {
+  const sent = []
+  const conn = { sendMessage: async (_chat, payload) => { sent.push(payload) } }
+  await sendLukaMediaRequest({
+    request: { kind: 'song', query: '', count: 1 },
+    m: { chat: 'group@g.us' }, conn,
+    pinterestSearch: async () => { throw new Error('لم يكن يجب البحث') },
+    youtubeDownload: async () => { throw new Error('لم يكن يجب التنزيل') },
+  })
+  assert.equal(sent.length, 1)
+  assert.match(sent[0].text, /ما اسم الأغنية/)
 })
