@@ -34,7 +34,7 @@ let handler = async (m, { conn, text, command }) => {
     return conn.sendMessage(m.chat, { text: `💐 ${mention}، ${compliments[Math.floor(Math.random() * compliments.length)]}`, mentions: [target] }, { quoted: m })
   }
 
-  if (/^شخصية$/i.test(command)) {
+  if (/^تحليل_شخصية$/i.test(command)) {
     if (!target) return m.reply('🔮 اذكر شخصًا أو اعمل ردًا على رسالته لتحليل شخصيته.')
     const selected = pick(traits, 4)
     const lines = selected.map((trait) => `• ${trait}: ${60 + Math.floor(Math.random() * 41)}%`).join('\n')
@@ -81,8 +81,8 @@ let handler = async (m, { conn, text, command }) => {
   }
 }
 
-handler.help = ['مدح @منشن', 'شخصية @منشن', 'كرة8 <سؤال>', 'بحث_يوتيوب <كلمة>', 'صور_دول <الدولة>', 'جرأة']
+handler.help = ['مدح @منشن', 'تحليل_شخصية @منشن', 'كرة8 <سؤال>', 'بحث_يوتيوب <كلمة>', 'صور_دول <الدولة>', 'جرأة']
 handler.tags = ['fun', 'downloader', 'image']
-handler.command = /^(مدح|شخصية|كرة8|بحث_يوتيوب|صور_دول|جرأة)$/i
+handler.command = /^(مدح|تحليل_شخصية|كرة8|بحث_يوتيوب|صور_دول|جرأة)$/i
 
 export default handler
