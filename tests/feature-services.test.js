@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { parseModerationDuration, isTemporarilyMuted } from '../lib/group-moderation.js'
 import { cancelReminder, createReminder, parseReminderDelay, takeDueReminders } from '../lib/reminders.js'
 import { awardGamePoint, getGameLeaderboard } from '../lib/game-leaderboard.js'
+import { DEFAULT_GOODBYE_MESSAGE, DEFAULT_GOODBYE_MESSAGES, DEFAULT_WELCOME_MESSAGE, DEFAULT_WELCOME_MESSAGES, handleGroupParticipantsUpdate } from '../lib/group-greetings.js'
 import { searchMenuCommands } from '../plugins/command-search.js'
 import welcomeSettings from '../plugins/group-welcome-settings.js'
 import protectionSettings from '../plugins/group-protection-settings.js'
@@ -66,10 +67,12 @@ test('group settings commands save greeting templates and scoped protection swit
   const replies = []
   const m = { isGroup: true, reply: async value => replies.push(value) }
   const chat = {}
-  await welcomeSettings(m, { chat, text: 'ترحيب أهلًا @user في {group}', usedPrefix: '.' })
+  await welcomeSettings(m, { chat, text: '', command: 'ترحيب_تشغيل', usedPrefix: '.' })
+  assert.equal(chat.memberGreetingEnabled, true)
+  await welcomeSettings(m, { chat, text: 'ترحيب أهلًا @user في {group}', command: 'ترحيب', usedPrefix: '.' })
   assert.equal(chat.sWelcome, 'أهلًا @user في {group}')
   assert.equal(chat.memberGreetingEnabled, true)
-  await welcomeSettings(m, { chat, text: 'off', usedPrefix: '.' })
+  await welcomeSettings(m, { chat, text: '', command: 'ترحيب_ايقاف', usedPrefix: '.' })
   assert.equal(chat.memberGreetingEnabled, false)
   await protectionSettings(m, { chat, text: 'روابط off', usedPrefix: '.' })
   await protectionSettings(m, { chat, text: 'سبام on', usedPrefix: '.' })
@@ -77,7 +80,41 @@ test('group settings commands save greeting templates and scoped protection swit
   assert.equal(chat.antilink, false)
   assert.equal(chat.antiSpam, true)
   assert.equal(chat.antiSpamLimit, 12)
-  assert.equal(replies.length, 5)
+  assert.equal(replies.length, 6)
+})
+
+test('group participant events send the requested welcome and goodbye messages with real mentions', async () => {
+  const group = '12345@g.us'
+  const joined = '23456@s.whatsapp.net'
+  const secondJoin = '23457@s.whatsapp.net'
+  const left = '34567@s.whatsapp.net'
+  const kicked = '45678@s.whatsapp.net'
+  const chat = { memberGreetingEnabled: true, welcome: true }
+  const db = { data: { chats: { [group]: chat } } }
+  const sent = []
+  const conn = {
+    decodeJid: jid => jid,
+    groupMetadata: async () => ({ subject: 'مجموعة الاختبار', participants: [{}, {}] }),
+    sendMessage: async (...args) => sent.push(args),
+  }
+
+  assert.equal(await handleGroupParticipantsUpdate(conn, { id: group, action: 'add', participants: [joined] }, db, () => 0), 1)
+  assert.equal(sent[0][1].text, DEFAULT_WELCOME_MESSAGE.replace('@العضو', '@23456'))
+  assert.deepEqual(sent[0][1].mentions, [joined])
+
+  assert.equal(await handleGroupParticipantsUpdate(conn, { id: group, action: 'add', participants: [secondJoin] }, db, () => 0.999), 1)
+  assert.equal(sent[1][1].text, DEFAULT_WELCOME_MESSAGES.at(-1).replace('@العضو', '@23457'))
+
+  assert.equal(await handleGroupParticipantsUpdate(conn, { id: group, action: 'leave', participants: [left] }, db, () => 0), 1)
+  assert.equal(sent[2][1].text, DEFAULT_GOODBYE_MESSAGE.replace('@العضو', '@34567'))
+  assert.deepEqual(sent[2][1].mentions, [left])
+
+  assert.equal(await handleGroupParticipantsUpdate(conn, { id: group, action: 'remove', participants: [kicked] }, db, () => 0), 1)
+  assert.equal(sent[3][1].text, DEFAULT_GOODBYE_MESSAGES[0].replace('@العضو', '@45678'))
+
+  chat.memberGreetingEnabled = false
+  assert.equal(await handleGroupParticipantsUpdate(conn, { id: group, action: 'add', participants: [joined] }, db), 0)
+  assert.equal(sent.length, 4)
 })
 
 test('temporary-mute command stores an expiry for the mentioned member', async () => {

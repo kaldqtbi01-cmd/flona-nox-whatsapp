@@ -30,6 +30,7 @@ import { createNexusCore } from "../lib/nexus-core.js"
 import { createAutonomousOS } from "../lib/nexus-os.js"
 
 import { startWhatsApp, ROOT_DIR, AUTH_DIR_NAME } from "./whatsapp.js"
+import { handleGroupParticipantsUpdate } from "../lib/group-greetings.js"
 
 // كل المسارات النسبية في البوت والإضافات (./tmp, ./media, database.json ...) تبدأ من جذر المشروع
 process.chdir(ROOT_DIR)
@@ -235,7 +236,12 @@ function bindHandlers(sock) {
     if (!sock) return
     if (sock.handler) sock.ev.off("messages.upsert", sock.handler)
     if (sock.statusHandler) sock.ev.off("messages.upsert", sock.statusHandler)
+    if (sock.groupGreetingHandler) sock.ev.off("group-participants.update", sock.groupGreetingHandler)
     sock.handler = handler.handler.bind(sock)
+    sock.groupGreetingHandler = (update) => {
+        handleGroupParticipantsUpdate(sock, update).catch((error) =>
+            console.error('[Group greeting] Event handler failed:', error?.message || error))
+    }
     sock.statusHandler = async (update) => {
         try {
             const settings = global.db?.data?.settings?.[sock.user?.jid] || {}
@@ -254,6 +260,7 @@ function bindHandlers(sock) {
     }
     // الرسائل الخاصة والمجموعات تمر كلها عبر نفس المعالج (m.isGroup يحدد النوع)
     sock.ev.on("messages.upsert", sock.handler)
+    sock.ev.on("group-participants.update", sock.groupGreetingHandler)
     sock.ev.on("messages.upsert", sock.statusHandler)
 }
 
