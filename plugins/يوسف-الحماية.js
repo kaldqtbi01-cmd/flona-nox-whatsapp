@@ -9,6 +9,7 @@ let handler = async (m, { conn, text, command, settings, chat, isAdmin, isOwner 
   const value = String(text || '').trim().toLowerCase()
   const enableAutoRead = command === 'تلقائي_تشغيل'
   const disableAutoRead = command === 'تلقائي_ايقاف'
+  let privacyWarning = ''
   const on = enableAutoRead || (!disableAutoRead && (value === 'on' || value === 'تشغيل' || value === 'تفعيل'))
   const off = disableAutoRead || (!enableAutoRead && (value === 'off' || value === 'إيقاف' || value === 'ايقاف' || value === 'تعطيل'))
   const target = /^(مكالمة_مضادة|مضاد_المكالمات)$/i.test(command) ? 'antiCall' :
@@ -24,10 +25,21 @@ let handler = async (m, { conn, text, command, settings, chat, isAdmin, isOwner 
     settings[target] = on
   }
   if (target === 'autoRead') {
+    if (on) {
+      try {
+        if (typeof conn.updateReadReceiptsPrivacy !== 'function') throw new Error('Baileys privacy API is unavailable')
+        await conn.updateReadReceiptsPrivacy('all')
+        const privacy = await conn.fetchPrivacySettings?.(true)
+        if (privacy?.readreceipts !== 'all') throw new Error(`readreceipts is ${privacy?.readreceipts || 'unknown'}`)
+      } catch (error) {
+        console.error('[AUTO READ] Could not enable WhatsApp read receipts:', error?.message || error)
+        privacyWarning = '\n⚠️ تعذر تأكيد إعداد إيصالات القراءة من واتساب؛ راجع سجل PM2.'
+      }
+    }
     try { await global.db?.write?.() } catch {}
   }
   const labels = { antiCall: 'منع المكالمات', autoRead: 'القراءة التلقائية', autoTyping: 'حالة الكتابة', autoStatus: 'قراءة الحالات', antiTag: 'منع التاغ', antiBadword: 'منع الكلمات' }
-  return m.reply(`✅ تم ${on ? 'تفعيل' : 'تعطيل'}: ${labels[target]}`)
+  return m.reply(`✅ تم ${on ? 'تفعيل' : 'تعطيل'}: ${labels[target]}${privacyWarning}`)
 }
 
 handler.all = async function (m, { conn, settings, chat, isAdmin }) {
@@ -35,7 +47,8 @@ handler.all = async function (m, { conn, settings, chat, isAdmin }) {
   const chatJid = m.key.remoteJid || m.chat || ''
   if (!chatJid || chatJid === 'status@broadcast' || chatJid.endsWith('@newsletter')) return
   if (enabled(settings?.autoRead)) {
-    try { await conn.readMessages([m.key]) } catch {}
+    try { await conn.readMessages([m.key]) }
+    catch (error) { console.error('[AUTO READ] Failed to send read receipt:', error?.message || error) }
   }
   if (m.text && enabled(settings?.autoTyping)) {
     try {
