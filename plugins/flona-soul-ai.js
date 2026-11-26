@@ -12,10 +12,13 @@ import {
   buildSoulSystemPrompt,
   clearSoulMemory,
   detectMood,
+  getMemberName,
   getSoulMemory,
   getSoulSettings,
   getActivePersonality,
   isRepeatedReply,
+  listKnownMemberNames,
+  rememberMemberName,
   rememberReply,
   resolveDialect,
   resolveMood,
@@ -106,6 +109,32 @@ function isReplyToBot(m, user, groupMetadata) {
 
 function quotedText(m) {
   return m.quoted?.text || m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation || ''
+}
+
+function cleanDeclaredName(value) {
+  let name = String(value || '').replace(/@\S+/gu, ' ').replace(/[\r\n]+/g, ' ').trim()
+  name = name.split(/[،,؛.!?؟]/u, 1)[0].trim()
+  const stop = name.match(/(?:^|\s)(?:وهذا|وهذه|وهذي|وهو|وهي|هذا|هذه|هذي|تذكري|تذكر|يا\s+لوكا)(?:\s|$)/u)
+  if (stop) name = name.slice(0, stop.index).trim()
+  return name.split(/\s+/u).slice(0, 4).join(' ').slice(0, 64)
+}
+
+function extractSelfName(text) {
+  const match = String(text || '').match(/(?:^|[\s،,])(?:أنا\s+)?اسمي(?:\s+هو)?\s+([^\n،,؛.!?؟]+)/u)
+  return match ? cleanDeclaredName(match[1]) : ''
+}
+
+function extractTargetName(text) {
+  const match = String(text || '').match(/(?:اسمه(?:\s+(?:هو|الحقيقي))?|اسمها(?:\s+(?:هي|الحقيقي))?|يسمى|تسمى|يدعى|تدعى)\s*[:：]?\s*([^\n،,؛.!?؟]+)/u)
+  return match ? cleanDeclaredName(match[1]) : ''
+}
+
+function memberNameTargets(m, user, groupMetadata) {
+  const botIds = new Set(botIdentitySources(user, groupMetadata))
+  const mentions = m.mentionedJid || m.msg?.contextInfo?.mentionedJid || m.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
+  const quotedSender = m.quoted?.sender || m.message?.extendedTextMessage?.contextInfo?.participant
+  return [...new Set([...(Array.isArray(mentions) ? mentions : []), quotedSender].filter(Boolean))]
+    .filter(jid => jid !== m.sender && !jidVariants(jid).some(id => botIds.has(id)))
 }
 
 function getRecentContext(chat) {
@@ -300,7 +329,11 @@ async function handleCommand(m, ctx) {
   }
   if (cmd === 'ذاكرة_الذكاء') {
     const memory = getSoulMemory(chat)
-    return send(m, conn, memory.length ? `🧠 ذاكرة لوكا:\n${memory.map(item => `• ${item}`).join('\n')}` : '🧠 لا توجد ذاكرة محفوظة مفيدة لهذه المجموعة')
+    const names = listKnownMemberNames(chat, 20)
+    const sections = []
+    if (memory.length) sections.push(`🧠 ذكريات لوكا:\n${memory.map(item => `• ${item}`).join('\n')}`)
+    if (names.length) sections.push(`👥 أسماء محفوظة في هذه المجموعة:\n${names.map(name => `• ${name}`).join('\n')}`)
+    return send(m, conn, sections.join('\n\n') || '🧠 لا توجد ذاكرة أو أسماء محفوظة لهذه المجموعة')
   }
   if (cmd === 'حالة_الذكاء') {
     const providers = getActiveAIProviders().status()
@@ -404,7 +437,19 @@ handler.all = async function (m, ctx = {}) {
     return await CHAT_QUEUE.run(m.chat, async () => {
       try {
         const queueWaitMs = Date.now() - enqueuedAt
-        const senderName = m.pushName || m.sender?.split('@')[0] || 'العضو'
+        const whatsappName = m.pushName || await connection.getName?.(m.sender) || m.sender?.split('@')[0] || 'العضو'
+        let namesChanged = rememberMemberName(chat, m.sender, { whatsappName, alias: extractSelfName(text) })
+        const targetAlias = extractTargetName(text)
+        if (targetAlias) {
+          const targets = memberNameTargets(m, this.user, ctx.groupMetadata)
+          if (targets.length === 1) {
+            const target = targets[0]
+            const targetWhatsappName = await connection.getName?.(target) || ''
+            namesChanged = rememberMemberName(chat, target, { whatsappName: targetWhatsappName, alias: targetAlias }) || namesChanged
+          }
+        }
+        if (namesChanged) await saveDb()
+        const senderName = getMemberName(chat, m.sender, whatsappName) || whatsappName
         if (!text && m.message?.audioMessage) {
           await connection.sendMessage(m.chat, { text: 'أقدر فهم النص والصور حاليًا، لكن تحويل الصوت إلى نص غير متاح في هذه النسخة بعد.' }, { quoted: m })
           return
@@ -435,6 +480,7 @@ handler.all = async function (m, ctx = {}) {
           text,
           quotedText: quoted,
           recentContext: getRecentContext(chat),
+          knownMembers: listKnownMemberNames(chat, 50),
           personality: personality.style,
           dialect: dialect.instruction,
           mood: MOODS[mood],
