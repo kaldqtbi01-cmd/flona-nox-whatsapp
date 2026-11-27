@@ -38,6 +38,9 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
   assert.equal(resolveDialect('صنعانيه'), 'sanaani')
   assert.equal(resolveDialect('صنعانية'), 'sanaani')
   assert.equal(resolveDialect('لهجة صنعاء'), 'sanaani')
+  assert.equal(resolveDialect('تعزية'), 'taizzi')
+  assert.equal(resolveDialect('تعزي'), 'taizzi')
+  assert.equal(resolveDialect('لهجة تعز'), 'taizzi')
   assert.equal(resolveDialect('تلقائي'), 'auto')
   assert.match(DIALECTS.sanaani.instruction, /لا تخلطيها/)
   assert.match(DIALECTS.sanaani.instruction, /أشتي\/تشتي/)
@@ -45,6 +48,9 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
   assert.match(DIALECTS.sanaani.instruction, /شاروح/)
   assert.match(DIALECTS.sanaani.instruction, /ما فهمتش/)
   assert.match(DIALECTS.sanaani.instruction, /لا تحشري القائمة كلها/)
+  assert.match(DIALECTS.taizzi.instruction, /شاشوفك/)
+  assert.match(DIALECTS.taizzi.instruction, /أكه\/هكه/)
+  assert.match(DIALECTS.taizzi.instruction, /لا تخلطيها بالصنعانية أو العدنية/)
 })
 
 test('محرك الشخصيات والمزاج يحل الأسماء العربية', () => {
