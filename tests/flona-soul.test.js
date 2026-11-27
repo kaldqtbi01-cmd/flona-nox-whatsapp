@@ -49,8 +49,10 @@ test('محرك اللهجات يحافظ على مفاتيح قابلة للتو
   assert.match(DIALECTS.sanaani.instruction, /ما فهمتش/)
   assert.match(DIALECTS.sanaani.instruction, /لا تحشري القائمة كلها/)
   assert.match(DIALECTS.taizzi.instruction, /شاشوفك/)
-  assert.match(DIALECTS.taizzi.instruction, /أكه\/هكه/)
-  assert.match(DIALECTS.taizzi.instruction, /لا تخلطيها بالصنعانية أو العدنية/)
+  assert.match(DIALECTS.taizzi.instruction, /«أذه» بمعنى «هذا»/)
+  assert.match(DIALECTS.taizzi.instruction, /«ش» اللاحقة للنفي/)
+  assert.match(DIALECTS.taizzi.instruction, /لا تستعملي من تلقاء نفسك هذه القائمة قبل تحقق محلي/)
+  assert.match(DIALECTS.taizzi.instruction, /لا تخلطيها بالصنعانية أو التهامية أو العدنية/)
 })
 
 test('محرك الشخصيات والمزاج يحل الأسماء العربية', () => {
