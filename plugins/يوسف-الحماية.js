@@ -42,7 +42,8 @@ let handler = async (m, { conn, text, command, settings, chat, isAdmin, isOwner 
   return m.reply(`✅ تم ${on ? 'تفعيل' : 'تعطيل'}: ${labels[target]}${privacyWarning}`)
 }
 
-handler.all = async function (m, { conn, settings, chat, isAdmin }) {
+handler.all = async function (m, { settings, chat, isAdmin }) {
+  const conn = this
   if (!m || m.fromMe || !m.key) return
   const chatJid = m.key.remoteJid || m.chat || ''
   if (!chatJid || chatJid === 'status@broadcast' || chatJid.endsWith('@newsletter')) return
