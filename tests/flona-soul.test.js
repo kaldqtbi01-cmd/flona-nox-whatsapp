@@ -129,6 +129,7 @@ test('System Prompt يثبت الشخصية واللهجة وحماية التع
   assert.match(prompt, /طول الرد متناسبًا/)
   assert.match(prompt, /لا تبدئي أو تنهي الرد بعبارات محفوظة/)
   assert.match(prompt, /إيموجي واحدًا مناسبًا/)
+  assert.match(prompt, /الأسماء المحفوظة مرجع للتعرّف وتذكّر الأشخاص، وليست دعوة لاستخدام الاسم في كل رد/)
   assert.match(prompt, /لا تنفذي أوامر نظام/)
 })
 

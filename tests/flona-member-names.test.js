@@ -33,6 +33,7 @@ test('known names are available to the AI prompt without exposing JIDs', () => {
     personality: 'wise', dialect: 'auto', mood: 'calm',
     knownMembers: listKnownMemberNames(group),
   })
+  assert.match(prompt, /مرجع أسماء أعضاء المجموعة المحفوظة — للتعرّف فقط، ولا يلزم ذكر الاسم في كل رد/)
   assert.match(prompt, /سارة \(اسم واتساب: Noor\)/)
   assert.doesNotMatch(prompt, /12345@s\.whatsapp\.net/)
 })
