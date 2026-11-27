@@ -89,10 +89,10 @@ test('الشخصية التلقائية تعرض خيارات الأسلوب و�
 
   assert.equal(getActivePersonality(settings).label, 'تلقائية حسب السياق')
   const prompt = buildSoulSystemPrompt(settings, '', 'calm', [])
-  assert.match(prompt, /اختاري من هذه الأساليب ما يلائم مقصد الرسالة الحالية/)
+  assert.match(prompt, /تلقائي تكيفي يجمع السمات من الشخصيات كلها/)
   assert.match(prompt, /رومانسية:/)
   assert.match(prompt, /حكيمة:/)
-  assert.match(prompt, /قد يتغير اختيارك بين رسالة وأخرى/)
+  assert.match(prompt, /قد يتغير مزيجك بين رسالة وأخرى/)
   assert.match(prompt, /لا تغيّري اللهجة بسبب اختيار الشخصية/)
   assert.match(prompt, /اختاري مستوى السخرية والعاطفة والحدة بما ينسجم مع الشخصية والسياق الحالي/)
   assert.doesNotMatch(prompt, /مستوى السخرية: 0\.25/)
